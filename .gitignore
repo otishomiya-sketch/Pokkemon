@@ -1,0 +1,16 @@
+# OS
+.DS_Store
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Runtime databases
+*.db
+*.db-shm
+*.db-wal
+
+# Dependencies / logs
+node_modules/
+*.log

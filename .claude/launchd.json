@@ -1,0 +1,67 @@
+{
+  "project": "hojokin",
+  "description": "メタ自己改善システム (ゲンガー集団 / ミュウ・ミューツー / アルセウス) のスケジュール",
+  "naming_convention": "com.claude.hojokin.{task}",
+  "updated_at": "2026-04-21",
+  "jobs": [
+    {
+      "label": "com.claude.hojokin.pokemon-dashboard",
+      "agent": "pokemon-dashboard",
+      "description": "ポケモンエージェント司令部（Pokemon Agent Dashboard）。Hooks駆動の監視+ロスター+仮説ボード+プレイブック（常駐、ポート5733）",
+      "schedule": "常駐（KeepAlive）",
+      "model": "N/A",
+      "agent_md": "N/A",
+      "runner": "bun pokemon-agents/web/server.ts",
+      "log": "~/.claude/logs/hojokin-pokemon-dashboard.log",
+      "dashboard": "http://localhost:5733/"
+    },
+    {
+      "label": "com.claude.hojokin.mew-supervisor",
+      "agent": "mew",
+      "description": "Axis B supervisor。毎日5:00に観測→仮説起草を1セッションで完結、auto_applyはミューツーに委譲、human_gateはDiscord通知",
+      "schedule": "毎日 5:00",
+      "model": "opus",
+      "agent_md": ".claude/agents/mew-supervisor.md",
+      "log": "~/.claude/logs/hojokin-mew-supervisor.log",
+      "note": "2026-04-22 再編。旧アルセウス+ディアルガ+パルキア(3体)をミュウ1体に統合。ギラティナは安全壁として分離維持→ミューツーにリネーム。context cohesion を優先",
+      "subagents": [
+        {
+          "name": "mewtwo-executor",
+          "role": "auto_apply分類のdiffをgit branchで適用+効果測定+revert (安全壁)",
+          "agent_md": ".claude/agents/mewtwo-executor.md",
+          "model": "sonnet"
+        }
+      ]
+    },
+    {
+      "label": "com.claude.hojokin.megagengar-orchestrator",
+      "agent": "megagengar",
+      "description": "仮説パイプライン全体オーケストレーター。毎日2:00にゴース→ゴースト→ゲンガーをTask起動。月初は長期メタレビュー兼務",
+      "schedule": "毎日 2:00",
+      "model": "opus",
+      "agent_md": ".claude/agents/megagengar-orchestrator.md",
+      "log": "~/.claude/logs/hojokin-megagengar-orchestrator.log",
+      "note": "2026-04-22 新規。進化軸と実行順を揃える再編で supervisor-worker パターンに移行",
+      "subagents": [
+        {
+          "name": "gastly-validator",
+          "role": "実測・検証+playbook昇華（Stage 1）",
+          "agent_md": ".claude/agents/gastly-validator.md",
+          "model": "sonnet"
+        },
+        {
+          "name": "haunter-hypothesizer",
+          "role": "仮説生成 3LLM（Stage 2）",
+          "agent_md": ".claude/agents/haunter-hypothesizer.md",
+          "model": "opus"
+        },
+        {
+          "name": "gengar-selector",
+          "role": "Eloトーナメント+guidance発行（Stage 3）",
+          "agent_md": ".claude/agents/gengar-selector.md",
+          "model": "sonnet"
+        }
+      ]
+    }
+  ]
+}

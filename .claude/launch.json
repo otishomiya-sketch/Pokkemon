@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dashboard-demo",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": ["-c", "cd /Users/omiyahisashi/Desktop/ポケモン/pokemon-agent-os && AGENTS_DB_PATH=.claude/db/agents-demo.db /Users/omiyahisashi/.bun/bin/bun pokemon-agents/web/server.ts"],
+      "port": 5733
+    }
+  ]
+}
