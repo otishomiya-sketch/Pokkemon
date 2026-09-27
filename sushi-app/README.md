@@ -41,6 +41,18 @@ bash scripts/run-agent.sh megagengar-orchestrator .claude/agents/megagengar-orch
 - 各担当は frontmatter の `allowed_tools` に書いた道具しか使えない（Web を読む担当が、ページ内の指示で勝手な操作をしないため）。
 - 結果はダッシュボード（`bun pokemon-agents/web/server.ts` → http://localhost:5733/ のリフレクションログ）で見られる。
 
+毎日の自動実行（macOS の launchd）:
+
+```bash
+bash scripts/install-schedule.sh            # 登録: 毎日 2:00 メガゲンガー / 毎週月曜 3:00 アルセウス
+bash scripts/install-schedule.sh --status   # 登録状況
+bash scripts/install-schedule.sh --remove   # 止める
+```
+
+- 夜中の実行は `.env.local` の `CLAUDE_CODE_OAUTH_TOKEN`（`claude setup-token` で発行、1 年有効）で認証する。
+- プロジェクトがデスクトップにある場合、macOS の「フルディスクアクセス」で `/bin/bash` を許可しておく必要がある（登録時に下見して、読めなければ登録しない）。
+- Mac がスリープ中だった場合は、次に起きたときに 1 回だけ実行される。ログは `~/.claude/logs/sushi-<担当>.log`。
+
 ## データの流れ
 
 | テーブル | 書く | 読む |
@@ -55,6 +67,5 @@ DB は `sushi-app/data/sushi.db`（GitHub には上げない）。
 
 ## まだ無いもの
 
-- 毎日の自動実行（launchd の登録）
 - 店舗ごとの本格的なログイン・課金
 - インターネット上への公開（今は手元の Mac でのみ動く）
