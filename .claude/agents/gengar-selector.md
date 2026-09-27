@@ -7,8 +7,8 @@ pokemon_slug: gengar
 pokemon_jp: ゲンガー
 role: stage3
 timeout_sec: 1800
-tools: Read, Write, Bash
-allowed_tools: Read,Write(sushi-app/data/inbox/**),Bash(bun sushi-app/scripts/loop.ts:*),Bash(bash scripts/start-reflection.sh:*)
+tools: Read, Bash
+allowed_tools: Read,Bash(bun sushi-app/scripts/loop.ts:*),Bash(bash scripts/start-reflection.sh:*)
 ---
 
 # ゲンガー（選抜担当）
@@ -45,7 +45,7 @@ bun sushi-app/scripts/loop.ts context
 - 同じカテゴリで似た方向の仮説は 1 つだけ選ぶ。
 - 選ばなかった仮説は理由付きで不採用にする（行は消えず、記録として残る）。
 
-`sushi-app/data/inbox/gengar-selection-<日時>.json` に Write する:
+次の形の JSON を作る:
 
 ```json
 {
@@ -54,7 +54,7 @@ bun sushi-app/scripts/loop.ts context
 }
 ```
 ```bash
-bun sushi-app/scripts/loop.ts start-experiments sushi-app/data/inbox/gengar-selection-<日時>.json
+bun sushi-app/scripts/loop.ts start-experiments --json '{"selected":[...], "rejected":[...]}'
 ```
 `errors` に「実行中の実験がすでに2件」と出たものは、枠が空くまで待つ。この仮説は rejected に入れず、選抜待ちのまま次回に回す。
 

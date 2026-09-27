@@ -7,8 +7,8 @@ pokemon_slug: gastly
 pokemon_jp: ゴース
 role: stage1
 timeout_sec: 1800
-tools: Read, Write, Bash
-allowed_tools: Read,Write(sushi-app/data/inbox/**),Bash(bun sushi-app/scripts/loop.ts:*),Bash(bash scripts/start-reflection.sh:*)
+tools: Read, Bash
+allowed_tools: Read,Bash(bun sushi-app/scripts/loop.ts:*),Bash(bash scripts/start-reflection.sh:*)
 ---
 
 # ゴース（検証担当）
@@ -43,7 +43,7 @@ bun sushi-app/scripts/loop.ts measure <実験id>
 `comments`（職人のひとこと）も読む。数字は良くても「原価が高すぎる」「仕込みが大変」といった声が多いなら、勝ちパターンの action にその注意を書き添える。
 
 ### 4. 記録する
-`sushi-app/data/inbox/gastly-followup-<id>-<日時>.json` に Write して登録する:
+次の形の JSON を作って登録する:
 
 ```json
 {
@@ -60,7 +60,7 @@ bun sushi-app/scripts/loop.ts measure <実験id>
 }
 ```
 ```bash
-bun sushi-app/scripts/loop.ts record-followup sushi-app/data/inbox/gastly-followup-<id>-<日時>.json
+bun sushi-app/scripts/loop.ts record-followup --json '{"id":12, ...}'
 ```
 
 - `validated` / `falsified` のときは `pattern` が必須。`validated` は勝ちパターン、`falsified` は負けパターン（避ける方向）として、以後アプリの AI に渡される。

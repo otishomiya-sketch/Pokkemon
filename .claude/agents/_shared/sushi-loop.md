@@ -28,7 +28,9 @@
 ## データの読み書き
 
 - sushi.db は **必ず `bun sushi-app/scripts/loop.ts <コマンド>` を通して** 読み書きする。sqlite3 で直接触らない。
-- 書き込みは、JSON を `sushi-app/data/inbox/<自分の名前>-<日時>.json` に Write してから、そのパスをコマンドに渡す。
+- 書き込みは、JSON を `--json '<JSON>'` でコマンドに直接渡す。ファイルは作らない（Write は使えない）。
+- JSON の中では半角の `'` を使わない（コマンドが壊れる）。引用したいときは「」を使う。
+- 件数が多いときは数件ずつに分けて、同じコマンドを複数回実行してよい。
 - 使えるコマンドは `sushi-app/scripts/loop.ts` の先頭に一覧がある。自分の担当以外の書き込みコマンドは使わない。
 
 ## 安全のルール（必ず守る）
@@ -50,8 +52,8 @@ bash scripts/start-reflection.sh --slug <自分の name> --trigger subagent --pa
 出力された数字が自分の `AGENT_RUN_ID`。
 
 ### Step Final（最後に必ず）
-次の JSON を `sushi-app/data/inbox/<自分の name>-reflection-<日時>.json` に Write し、
-`bun sushi-app/scripts/loop.ts finish-reflection <AGENT_RUN_ID> <そのファイル>` を実行する。
+次の JSON を渡して実行する:
+`bun sushi-app/scripts/loop.ts finish-reflection <AGENT_RUN_ID> --json '<JSON>'`
 
 ```json
 {

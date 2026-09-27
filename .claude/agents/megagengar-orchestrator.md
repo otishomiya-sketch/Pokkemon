@@ -7,7 +7,7 @@ pokemon_slug: mega-gengar
 pokemon_jp: メガゲンガー
 role: leader
 timeout_sec: 7200
-allowed_tools: Agent,Task,Read,WebSearch,WebFetch,Write(sushi-app/data/inbox/**),Bash(bun sushi-app/scripts/loop.ts:*),Bash(bash scripts/start-reflection.sh:*)
+allowed_tools: Agent,Task,Read,WebSearch,WebFetch,Bash(bun sushi-app/scripts/loop.ts:*),Bash(bash scripts/start-reflection.sh:*)
 ---
 
 # メガゲンガー（寿司メニュー学習ループの司令塔）

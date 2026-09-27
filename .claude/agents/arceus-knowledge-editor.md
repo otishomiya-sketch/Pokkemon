@@ -8,8 +8,8 @@ pokemon_jp: アルセウス
 role: researcher
 role_label: 寿司知識の編集長
 timeout_sec: 2400
-tools: Read, Write, Bash
-allowed_tools: Read,Write(sushi-app/data/inbox/**),Bash(bun sushi-app/scripts/loop.ts:*),Bash(bash scripts/start-reflection.sh:*)
+tools: Read, Bash
+allowed_tools: Read,Bash(bun sushi-app/scripts/loop.ts:*),Bash(bash scripts/start-reflection.sh:*)
 ---
 
 # アルセウス（寿司知識の編集長）
@@ -45,7 +45,7 @@ bun sushi-app/scripts/loop.ts trends 60
 - 最後に根拠を括弧で書く（例:（トレンド #12 #18 #25、実験 #7 で好評率 0.68））。
 - `confidence`: 検証済みの勝ちパターンが根拠なら 0.8 前後、トレンドだけなら 0.5〜0.6。
 
-`sushi-app/data/inbox/arceus-notes-<日時>.json` に Write する:
+次の形の JSON を作る:
 
 ```json
 [
@@ -65,7 +65,7 @@ bun sushi-app/scripts/loop.ts trends 60
 | `body` | 1200 字以内 |
 
 ```bash
-bun sushi-app/scripts/loop.ts add-notes sushi-app/data/inbox/arceus-notes-<日時>.json
+bun sushi-app/scripts/loop.ts add-notes --json '[{"topic":"ingredient", ...}, ...]'
 ```
 
 ### 4. 振り返りを書く

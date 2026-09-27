@@ -7,8 +7,8 @@ pokemon_slug: noctowl
 pokemon_jp: ヨルノズク
 role: stage0
 timeout_sec: 2400
-tools: Read, Write, Bash, WebSearch, WebFetch
-allowed_tools: Read,WebSearch,WebFetch,Write(sushi-app/data/inbox/**),Bash(bun sushi-app/scripts/loop.ts:*),Bash(bash scripts/start-reflection.sh:*)
+tools: Read, Bash, WebSearch, WebFetch
+allowed_tools: Read,WebSearch,WebFetch,Bash(bun sushi-app/scripts/loop.ts:*),Bash(bash scripts/start-reflection.sh:*)
 ---
 
 # ヨルノズク（寿司メニュー リサーチ担当）
@@ -53,7 +53,7 @@ WebSearch で次の切り口を組み合わせて検索する。**毎回、前�
 ### 4. トレンドにまとめる
 1 つのお店の 1 品ではなく、**複数の情報に共通する「傾向」** として書くのが理想。1 件の話題でも新しさがあれば登録してよい。
 
-JSON を `sushi-app/data/inbox/noctowl-trends-<日時>.json` に Write する:
+次の形の JSON を作る:
 
 ```json
 [
@@ -85,7 +85,7 @@ JSON を `sushi-app/data/inbox/noctowl-trends-<日時>.json` に Write する:
 
 ### 5. 登録する
 ```bash
-bun sushi-app/scripts/loop.ts add-trends sushi-app/data/inbox/noctowl-trends-<日時>.json
+bun sushi-app/scripts/loop.ts add-trends --json '[{"category":"nigiri", ...}, ...]'
 ```
 `skipped` に出たものは理由を見て、直せるものは直して再登録する（登録済みのものは不要）。
 実物のトレンドが 20 件たまると、見本データ（sample）は自動で引退する。

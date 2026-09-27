@@ -1,20 +1,20 @@
 #!/usr/bin/env bun
 /**
  * 学習ループ用コマンド。エージェントは SQL を直接書かず、必ずこれを通して sushi.db を読み書きする。
- * 入力は JSON ファイル（sushi-app/data/inbox/ に書いてから渡す）。
+ * 書き込みの入力は JSON。`--json '<JSON>'` で直接渡す（JSON の中に ' を使わない）か、JSON ファイルのパスを渡す。
  *
  *   bun sushi-app/scripts/loop.ts context                         全体の状況（JSON）
  *   bun sushi-app/scripts/loop.ts trends [日数=30]                 最近のトレンド一覧
- *   bun sushi-app/scripts/loop.ts add-trends <file>               トレンド追加（ヨルノズク）
+ *   bun sushi-app/scripts/loop.ts add-trends --json '<JSON>'      トレンド追加（ヨルノズク）
  *   bun sushi-app/scripts/loop.ts baseline <nigiri|dish> [日数=14] 評価率の基準値
  *   bun sushi-app/scripts/loop.ts due                             測定日が来た実験の一覧（ゴース）
  *   bun sushi-app/scripts/loop.ts measure <実験id>                 実験の評価率と判定の目安（ゴース）
- *   bun sushi-app/scripts/loop.ts record-followup <file>          測定結果・判定の記録（ゴース）
- *   bun sushi-app/scripts/loop.ts add-hypotheses <file>           仮説追加（ゴースト）
+ *   bun sushi-app/scripts/loop.ts record-followup --json '<JSON>' 測定結果・判定の記録（ゴース）
+ *   bun sushi-app/scripts/loop.ts add-hypotheses --json '<JSON>'  仮説追加（ゴースト）
  *   bun sushi-app/scripts/loop.ts proposed                        選抜待ちの仮説（ゲンガー）
- *   bun sushi-app/scripts/loop.ts start-experiments <file>        選抜結果の反映（ゲンガー）
- *   bun sushi-app/scripts/loop.ts add-notes <file>                素材の知識を追加・更新（アルセウス）
- *   bun sushi-app/scripts/loop.ts finish-reflection <run_id> <file>  振り返りの記録（全員）
+ *   bun sushi-app/scripts/loop.ts start-experiments --json '<JSON>' 選抜結果の反映（ゲンガー）
+ *   bun sushi-app/scripts/loop.ts add-notes --json '<JSON>'       素材の知識を追加・更新（アルセウス）
+ *   bun sushi-app/scripts/loop.ts finish-reflection <run_id> --json '<JSON>'  振り返りの記録（全員）
  */
 import { Database } from "bun:sqlite";
 import { existsSync, readFileSync } from "fs";
@@ -39,11 +39,20 @@ function die(message: string): never {
   console.error(`[loop] ${message}`);
   process.exit(1);
 }
-function readJson(path: string | undefined): any {
-  if (!path) die("JSON ファイルのパスを指定してください");
-  if (!existsSync(path)) die(`ファイルがありません: ${path}`);
+/** `--json '<JSON>'` で直接渡すか、JSON ファイルのパスを渡す */
+function readJson(...input: (string | undefined)[]): any {
+  const [first, second] = input;
+  let text: string;
+  if (first === "--json") {
+    if (!second) die("--json の後に JSON を書いてください");
+    text = second;
+  } else {
+    if (!first) die("--json '<JSON>' か JSON ファイルのパスを指定してください");
+    if (!existsSync(first)) die(`ファイルがありません: ${first}`);
+    text = readFileSync(first, "utf8");
+  }
   try {
-    return JSON.parse(readFileSync(path, "utf8"));
+    return JSON.parse(text);
   } catch (e) {
     die(`JSON として読めません: ${(e as Error).message}`);
   }
@@ -152,7 +161,7 @@ switch (cmd) {
   }
 
   case "add-trends": {
-    const items = readJson(args[0]);
+    const items = readJson(args[0], args[1]);
     if (!Array.isArray(items)) die("配列 [...] で渡してください");
     const insert = db.query(
       `INSERT INTO trends (category, title, summary, ingredients, techniques, season, region, source_type, source_url, collected_by)
@@ -245,7 +254,7 @@ switch (cmd) {
   }
 
   case "record-followup": {
-    const f = readJson(args[0]);
+    const f = readJson(args[0], args[1]);
     const h = db
       .query<{ id: number; kind: string; status: string; category: string; statement: string; evidence: string; metric: string; baseline: number; target: number; follow_up_results: string; trend_ids: string }, [number]>(
         "SELECT id, kind, status, category, statement, evidence, metric, baseline, target, follow_up_results, trend_ids FROM menu_hypotheses WHERE id = ?",
@@ -282,7 +291,7 @@ switch (cmd) {
   }
 
   case "add-hypotheses": {
-    const items = readJson(args[0]);
+    const items = readJson(args[0], args[1]);
     if (!Array.isArray(items)) die("配列 [...] で渡してください");
     if (items.length > MAX_HYPOTHESES_PER_RUN) die(`1回に出せる仮説は ${MAX_HYPOTHESES_PER_RUN} 件までです`);
     const insert = db.query(
@@ -325,7 +334,7 @@ switch (cmd) {
   }
 
   case "start-experiments": {
-    const f = readJson(args[0]);
+    const f = readJson(args[0], args[1]);
     const started: number[] = [];
     const errors: string[] = [];
     for (const s of Array.isArray(f.selected) ? f.selected : []) {
@@ -355,7 +364,7 @@ switch (cmd) {
   }
 
   case "add-notes": {
-    const items = readJson(args[0]);
+    const items = readJson(args[0], args[1]);
     if (!Array.isArray(items)) die("配列 [...] で渡してください");
     const find = db.query<{ id: number }, [string, string]>("SELECT id FROM knowledge_notes WHERE topic = ? AND subject = ?");
     let added = 0, updated = 0;
@@ -378,7 +387,7 @@ switch (cmd) {
 
   case "finish-reflection": {
     const runId = Number(args[0]);
-    const f = readJson(args[1]);
+    const f = readJson(args[1], args[2]);
     if (!runId) die("run_id を指定してください");
     if (!existsSync(AGENTS_DB)) die(`agents.db がありません: ${AGENTS_DB}（bash pokemon-agents/scripts/init.sh で作成）`);
     const agents = new Database(AGENTS_DB);

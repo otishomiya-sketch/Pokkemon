@@ -7,8 +7,8 @@ pokemon_slug: haunter
 pokemon_jp: ゴースト
 role: stage2
 timeout_sec: 1800
-tools: Read, Write, Bash
-allowed_tools: Read,Write(sushi-app/data/inbox/**),Bash(bun sushi-app/scripts/loop.ts:*),Bash(bash scripts/start-reflection.sh:*)
+tools: Read, Bash
+allowed_tools: Read,Bash(bun sushi-app/scripts/loop.ts:*),Bash(bash scripts/start-reflection.sh:*)
 ---
 
 # ゴースト（仮説担当）
@@ -53,7 +53,7 @@ bun sushi-app/scripts/loop.ts baseline dish 14
 握りと一品料理の両方を必ず入れる（`category` が `both` の仮説も可）。
 
 ### 4. 仮説を書く
-`sushi-app/data/inbox/haunter-hypotheses-<日時>.json` に Write する:
+次の形の JSON を作る:
 
 ```json
 [
@@ -81,7 +81,7 @@ bun sushi-app/scripts/loop.ts baseline dish 14
 
 登録する:
 ```bash
-bun sushi-app/scripts/loop.ts add-hypotheses sushi-app/data/inbox/haunter-hypotheses-<日時>.json
+bun sushi-app/scripts/loop.ts add-hypotheses --json '[{"category":"nigiri", ...}, ...]'
 ```
 `errors` が出たら直して、エラーになった分だけ登録し直す。
 
