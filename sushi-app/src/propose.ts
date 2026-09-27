@@ -40,11 +40,11 @@ const SYSTEM = `あなたは日本の寿司店のメニュー開発を支える�
 - 提案は職人がそのまま仕込みに使えるレシピにする。分量・塩や酢の加減・温度・寝かせ時間など、手を動かすのに必要な情報を具体的に書く。
 - 入力された素材を主役にする。一般的な寿司店にある調味料や薬味は自由に足してよい。
 - 3品は方向性を変える（王道寄り・季節感・意外性など）。
-- 「最近のトレンド」は発想の参考にする。特定の店のメニューを再現したり店名を出したりせず、傾向を踏まえたオリジナルの提案にする。参考にしたトレンドは trend_ids に id を入れる。
+- 「最近のトレンド」は発想の参考にする。特定の店のメニューを再現したり店名を出したりせず、傾向を踏まえたオリジナルの提案にする。参考にしたトレンドは trend_ids に id を入れる。trend_basis は職人が読む文なので、id や「今週の方針」といった内部の言葉は書かず、どんな流行をどう活かしたかを書く。
 - 「職人の評価」は他店での反応。好評の方向は活かし、不評の方向は避ける。
 - 「今週の提案方針」があれば、3品のうち少なくとも1品はその方針に沿わせる。
 - 「検証済みの傾向」の勝ちパターンは積極的に使い、負けパターンは避ける。
-- 食品衛生上の注意（寄生虫・加熱の要否など）が関わる素材は shokunin_points に必ず書く。`;
+- 食品衛生上の注意（寄生虫・加熱の要否など）が関わる素材は shokunin_points に必ず書く。アニサキスなどの寄生虫は、目視確認だけでは防げないので「-20℃で24時間以上の冷凍」または「十分な加熱」を対策として書き、目視は補助として扱う。`;
 
 function buildUserPrompt(input: ProposeInput): string {
   const trends = input.trends.length
@@ -94,7 +94,9 @@ export function hasCredentials(): boolean {
 export class ProposalError extends Error {}
 
 export async function proposeLive(input: ProposeInput): Promise<ProposalResult> {
-  const client = new Anthropic();
+  // 組織単位の API キーは、どのワークスペースで使うかをヘッダーで指定する必要がある
+  const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID;
+  const client = new Anthropic(workspaceId ? { defaultHeaders: { "anthropic-workspace-id": workspaceId } } : {});
   let response;
   try {
     response = await client.beta.messages.parse({
@@ -107,6 +109,7 @@ export async function proposeLive(input: ProposeInput): Promise<ProposalResult> 
       messages: [{ role: "user", content: buildUserPrompt(input) }],
     });
   } catch (error) {
+    if (error instanceof Anthropic.APIError) console.error(`[propose] API error ${error.status}: ${error.message}`);
     if (error instanceof Anthropic.AuthenticationError) throw new ProposalError("APIキーが正しくありません");
     if (error instanceof Anthropic.RateLimitError) throw new ProposalError("混み合っています。少し待ってからもう一度お試しください");
     if (error instanceof Anthropic.APIError) throw new ProposalError(`AIの呼び出しに失敗しました（${error.status}）`);
