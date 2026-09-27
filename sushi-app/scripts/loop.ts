@@ -167,9 +167,8 @@ switch (cmd) {
       `INSERT INTO trends (category, title, summary, ingredients, techniques, season, region, source_type, source_url, collected_by)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'noctowl-researcher')`,
     );
-    const exists = db.query<{ id: number }, [string, string]>(
-      "SELECT id FROM trends WHERE source_url = ? OR title = ? LIMIT 1",
-    );
+    // 1 つの記事から複数の傾向を取れるよう、重複は見出しで判定する
+    const exists = db.query<{ id: number }, [string]>("SELECT id FROM trends WHERE title = ? LIMIT 1");
     const result = { added: 0, skipped: [] as string[] };
     for (const t of items) {
       const title = str(t.title, 60);
@@ -180,7 +179,7 @@ switch (cmd) {
         !title || !summary ? "title / summary が空" :
         t.source_type !== "sns" && t.source_type !== "web" ? "source_type は sns か web" :
         !/^https?:\/\//.test(url) ? "source_url が URL ではない" :
-        exists.get(url, title) ? "登録済み" : "";
+        exists.get(title) ? "登録済み（同じ見出し）" : "";
       if (why) {
         result.skipped.push(`${title || "(無題)"}: ${why}`);
         continue;

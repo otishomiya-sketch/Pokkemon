@@ -18,6 +18,7 @@ const PORT = Number(process.env.PORT ?? 5800);
 const HOST = process.env.HOST ?? "127.0.0.1";
 
 const json = (data: unknown, status = 200) => Response.json(data, { status });
+const pickOne = <T,>(items: T[]): T[] => (items.length ? [items[Math.floor(Math.random() * items.length)]!] : []);
 const fail = (message: string, status = 400) => json({ error: message }, status);
 
 function shopFrom(req: Request) {
@@ -47,7 +48,8 @@ async function handlePropose(req: Request) {
     trends: selectTrends(db, category, ingredients),
     signals: feedbackSignals(db, category),
     knowledge: knowledgeFor(db, ingredients),
-    guidelines: activeGuidelines(db, category),
+    // 実行中の実験が複数あっても、1 回の提案に渡すのは 1 つだけ（どの方針が効いたかを分けて測るため）
+    guidelines: pickOne(activeGuidelines(db, category)),
     patterns: learnedPatterns(db, category),
   };
   const live = hasCredentials();

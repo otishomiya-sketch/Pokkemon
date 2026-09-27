@@ -49,6 +49,8 @@ run-agent.sh から起動された場合は `AGENT_RUN_ID` が渡されている
 bash scripts/start-reflection.sh --slug <自分の name> --trigger subagent --parent <PARENT_RUN_ID>
 ```
 
+`<自分の name>` は自分の .md 冒頭（frontmatter）の `name:` をそのまま使う（例: `gastly-validator`。`gastly` のように短くしない。ダッシュボードで担当と結び付かなくなる）。
+
 出力された数字が自分の `AGENT_RUN_ID`。
 
 ### Step Final（最後に必ず）
@@ -59,11 +61,13 @@ bash scripts/start-reflection.sh --slug <自分の name> --trigger subagent --pa
 {
   "what_done": "- やったこと（箇条書き）",
   "quality_check": "- ✅/❌ 自分の担当ルールを守れたか（箇条書き）",
-  "quality_score": 0,
+  "quality_score": 85,
   "result_full": "人が読む報告の全文（件数・判断の理由・気になった点）",
   "self_improvement": "自分の手順・ルール（この .md）をどう直すとよいか",
   "content_improvement": "アプリの提案内容や画面をどう良くするとよいか"
 }
 ```
+
+`quality_score` は **0〜100 の点数**（100 が満点。10 点満点や 5 点満点で書かない）。quality_check の ✅ の割合と、成果の質で決める。
 
 `self_improvement` はエージェント自身の直し方、`content_improvement` はアプリ・提案の直し方。混ぜない。

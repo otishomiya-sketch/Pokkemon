@@ -1,7 +1,7 @@
 {
   "project": "sushi-menu",
   "description": "寿司メニュー提案アプリの学習ループ（ヨルノズク / ゲンガー集団 / アルセウス）と、自己改変ループ（ミュウ・ミューツー）のスケジュール",
-  "naming_convention": "com.claude.hojokin.{task}",
+  "naming_convention": "com.claude.sushi.{task}（登録: bash scripts/install-schedule.sh）",
   "updated_at": "2026-09-27",
   "jobs": [
     {
@@ -34,13 +34,13 @@
       ]
     },
     {
-      "label": "com.claude.hojokin.megagengar-orchestrator",
+      "label": "com.claude.sushi.megagengar-orchestrator",
       "agent": "megagengar",
       "description": "寿司メニュー学習ループの司令塔。毎日2:00にヨルノズク→ゴース→ゴースト→ゲンガーをサブエージェントとして起動",
       "schedule": "毎日 2:00",
       "model": "opus",
       "agent_md": ".claude/agents/megagengar-orchestrator.md",
-      "log": "~/.claude/logs/hojokin-megagengar-orchestrator.log",
+      "log": "~/.claude/logs/sushi-megagengar-orchestrator.log",
       "note": "2026-09-27 寿司メニュー提案アプリ向けに再編。リサーチ担当ヨルノズクを Stage 0 として追加",
       "subagents": [
         {
