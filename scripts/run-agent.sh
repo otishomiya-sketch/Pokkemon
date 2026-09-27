@@ -7,18 +7,26 @@ AGENT_FULL="$1"
 AGENT_MD="$2"
 MODEL="${3:-}"
 
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# launchd など PATH が最小の環境でも bun / claude が見つかるようにする
+export PATH="$HOME/.bun/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+CLAUDE_BIN="${CLAUDE_BIN:-$(command -v claude || ls "$HOME"/.nvm/versions/node/*/bin/claude 2>/dev/null | tail -1 || true)}"
+CLAUDE_BIN="${CLAUDE_BIN:-$HOME/.local/bin/claude}"
+# nvm で入れた claude は node を必要とするので、同じ場所の node を PATH に入れる
+export PATH="$(dirname "$CLAUDE_BIN"):$PATH"
+
 # エージェントファイル解決（フラット .md / subfolder agent.md / パイプラインフォルダ）
 # 解決優先順位 (B 案移行・2026-05-07):
 #   1. 引数 path がそのまま存在 → 使う
 #   2. .claude/agents/<slug>.md (公式フラット配置) → 移行先
 #   3. .claude/agents/*/.../<slug>/agent.md (旧サブフォルダ配置) → 移行元、互換維持
-if [ ! -f "/Users/tom/dev/hojokin-db/$AGENT_MD" ] && [ ! -f "$AGENT_MD" ]; then
-    FLAT="/Users/tom/dev/hojokin-db/.claude/agents/${AGENT_FULL}.md"
+if [ ! -f "$REPO_ROOT/$AGENT_MD" ] && [ ! -f "$AGENT_MD" ]; then
+    FLAT="$REPO_ROOT/.claude/agents/${AGENT_FULL}.md"
     if [ -f "$FLAT" ]; then
         echo "[run-agent] flat resolved: $AGENT_MD -> $FLAT" >&2
         AGENT_MD="$FLAT"
     else
-        RESOLVED=$(find /Users/tom/dev/hojokin-db/.claude/agents -type f -name 'agent.md' -path "*/${AGENT_FULL}/agent.md" 2>/dev/null | head -1)
+        RESOLVED=$(find "$REPO_ROOT"/.claude/agents -type f -name 'agent.md' -path "*/${AGENT_FULL}/agent.md" 2>/dev/null | head -1)
         if [ -n "$RESOLVED" ]; then
             echo "[run-agent] subfolder fallback: $AGENT_MD -> $RESOLVED" >&2
             AGENT_MD="$RESOLVED"
@@ -35,7 +43,10 @@ fi
 # full の場合 runs との JOIN が失敗するので廃止（2026-04-24）
 AGENT_NAME="$AGENT_FULL"
 
-cd /Users/tom/dev/hojokin-db
+cd "$REPO_ROOT"
+
+# 通知先などの設定を読む（無ければスキップ）
+if [ -f .env.local ]; then set -a; . ./.env.local; set +a; fi
 
 # モデル: 第3引数 > agent.md frontmatter の model: > claude 既定 の優先順位。
 # frontmatter に model: sonnet 等があるのに未指定だと既定(Opus等)で走り高コストになるため、
@@ -58,12 +69,22 @@ TIMEOUT_SEC="${AGENT_TIMEOUT:-$DEFAULT_TIMEOUT}"
 # 実行開始時に reflections に running 行を INSERT → RUN_ID を agent 環境変数で渡す
 # agent.md は UPDATE reflections SET self_score=... WHERE id=$RUN_ID で reflection を書く
 # 共通ヘルパー scripts/start-reflection.sh を使う (subagent も同じヘルパーを使うので統一)
-RUN_ID=$(bash /Users/tom/dev/hojokin-db/scripts/start-reflection.sh --slug "$AGENT_NAME" --trigger launchd)
+RUN_ID=$(bash "$REPO_ROOT/scripts/start-reflection.sh" --slug "$AGENT_NAME" --trigger launchd)
 export AGENT_RUN_ID="$RUN_ID"
+
+# 権限: frontmatter に allowed_tools: があればその道具だけ許可（Web を読むエージェント向けの安全策）
+# 無ければ従来どおり全許可
+ALLOWED_TOOLS=$(awk '/^---$/{n++; next} n==1 && /^allowed_tools:/{sub(/^allowed_tools:[ ]*/, ""); print; exit}' "$AGENT_MD" 2>/dev/null)
+if [ -n "$ALLOWED_TOOLS" ]; then
+    PERMISSION_ARGS=(--permission-mode dontAsk --allowedTools "$ALLOWED_TOOLS")
+    echo "[run-agent] allowed tools: $ALLOWED_TOOLS" >&2
+else
+    PERMISSION_ARGS=(--dangerously-skip-permissions)
+fi
 
 # macOS互換タイムアウト（バックグラウンド+wait+kill方式）
 TMPOUT=$(mktemp)
-/Users/tom/.local/bin/claude $MODEL_FLAG -p "$AGENT_MD を読み、そのルールに従って実行せよ。あなたの AGENT_RUN_ID は ${RUN_ID} です。reflection を書く際は UPDATE reflections SET self_score=..., what_went_well=... WHERE id=${RUN_ID}; を使ってください。" --dangerously-skip-permissions --output-format json > "$TMPOUT" 2>&1 &
+"$CLAUDE_BIN" $MODEL_FLAG -p "$AGENT_MD を読み、そのルールに従って実行せよ。あなたの AGENT_RUN_ID は ${RUN_ID} です。振り返りは Step Final の手順で UPDATE reflections ... WHERE id=${RUN_ID}; を使って書いてください。" "${PERMISSION_ARGS[@]}" --output-format json > "$TMPOUT" 2>&1 &
 CLAUDE_PID=$!
 
 # タイムアウト監視

@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f6f1e7">
+<title>寿司メニュー提案</title>
+<style>
+  :root {
+    --bg: #f6f1e7; --surface: #fffdf8; --fg: #1f1b16; --muted: #6f665a; --line: #e2d9c8;
+    --accent: #b33a2b; --accent-fg: #fff; --soft: #f0e7d6; --ok: #2f6b4f; --ok-fg: #fff; --warn: #9a6a12;
+    --radius: 14px; --serif: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16130f; --surface: #211d18; --fg: #efe8dc; --muted: #a79d8f; --line: #3a332b;
+            --accent: #e0604c; --accent-fg: #1a0e0b; --soft: #2b261f; --ok: #6fbf95; --ok-fg: #0f2419; --warn: #e0b35a; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+         font-size: 16px; line-height: 1.6; -webkit-text-size-adjust: 100%;
+         padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+  main { max-width: 560px; margin: 0 auto; padding: 0 16px 48px; }
+  header { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .bar { max-width: 560px; margin: 0 auto; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+  .brand { font-family: var(--serif); font-size: 19px; font-weight: 600; letter-spacing: .08em; }
+  .brand small { display: block; font-family: inherit; font-size: 12px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+  .tabs { margin-left: auto; display: flex; gap: 4px; background: var(--soft); border-radius: 999px; padding: 3px; }
+  .tabs button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 14px;
+                 padding: 6px 14px; border-radius: 999px; }
+  .tabs button[aria-selected="true"] { background: var(--surface); color: var(--fg); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  h2 { font-family: var(--serif); font-size: 17px; margin: 28px 0 10px; letter-spacing: .04em; }
+  .hint { color: var(--muted); font-size: 13px; margin: -4px 0 10px; }
+  .banner { margin: 16px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--soft);
+            color: var(--warn); font-size: 13px; border: 1px solid var(--line); }
+  .row { display: flex; gap: 8px; }
+  input[type=text], textarea { width: 100%; font: inherit; font-size: 16px; color: var(--fg); background: var(--surface);
+            border: 1px solid var(--line); border-radius: 10px; padding: 12px; outline: none; }
+  input[type=text]:focus, textarea:focus { border-color: var(--accent); }
+  textarea { min-height: 72px; resize: vertical; }
+  .btn { font: inherit; border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+         border-radius: 10px; padding: 12px 16px; white-space: nowrap; }
+  .btn.primary { width: 100%; background: var(--accent); border-color: var(--accent); color: var(--accent-fg);
+                 font-size: 17px; font-weight: 600; padding: 15px; margin-top: 24px; letter-spacing: .06em; }
+  .btn:disabled { opacity: .5; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px 6px 12px; border-radius: 999px;
+          background: var(--fg); color: var(--bg); font-size: 15px; }
+  .chip button { border: 0; background: transparent; color: inherit; font-size: 16px; line-height: 1; padding: 2px 4px; opacity: .7; }
+  .picks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .picks button { font: inherit; font-size: 14px; border: 1px dashed var(--line); background: transparent;
+                  color: var(--muted); border-radius: 999px; padding: 4px 12px; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .seg button { font: inherit; padding: 14px 8px; border-radius: 12px; border: 1.5px solid var(--line);
+                background: var(--surface); color: var(--fg); text-align: center; }
+  .seg button b { display: block; font-family: var(--serif); font-size: 18px; }
+  .seg button span { font-size: 12px; color: var(--muted); }
+  .seg button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .loading { text-align: center; color: var(--muted); padding: 32px 0; }
+  .dots::after { content: ""; animation: dots 1.4s steps(4) infinite; }
+  @keyframes dots { 0% { content: ""; } 25% { content: "・"; } 50% { content: "・・"; } 75% { content: "・・・"; } }
+  .error { color: var(--accent); background: var(--soft); border-radius: 10px; padding: 12px; margin-top: 16px; font-size: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 16px; margin-top: 14px; }
+  .card .num { font-family: var(--serif); color: var(--accent); font-size: 13px; letter-spacing: .1em; }
+  .card h3 { font-family: var(--serif); font-size: 20px; margin: 2px 0 4px; line-height: 1.4; }
+  .card .concept { margin: 0; }
+  .card .basis { font-size: 13px; color: var(--muted); margin: 10px 0 0; padding-left: 10px; border-left: 2px solid var(--line); }
+  details { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+  summary { cursor: pointer; font-weight: 600; color: var(--accent); list-style: none; padding: 4px 0; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: " ＋"; }
+  details[open] summary::after { content: " －"; }
+  details h4 { font-size: 13px; color: var(--muted); margin: 16px 0 6px; letter-spacing: .08em; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  td { padding: 6px 0; border-bottom: 1px dotted var(--line); vertical-align: top; }
+  td:last-child { text-align: right; color: var(--muted); padding-left: 12px; }
+  ol, ul { margin: 0; padding-left: 1.3em; }
+  li { margin: 4px 0; }
+  .fb { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 16px; }
+  .fb button { font: inherit; font-size: 13px; padding: 10px 4px; border-radius: 10px; border: 1px solid var(--line);
+               background: transparent; color: var(--fg); }
+  .fb button[aria-pressed="true"][data-r="adopted"] { background: var(--ok); border-color: var(--ok); color: var(--ok-fg); }
+  .fb button[aria-pressed="true"][data-r="tried"] { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+  .fb button[aria-pressed="true"][data-r="not_fit"] { background: var(--muted); border-color: var(--muted); color: var(--bg); }
+  .hist { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-top: 10px;
+          width: 100%; text-align: left; font: inherit; color: var(--fg); }
+  .hist small { color: var(--muted); display: block; font-size: 12px; }
+  .login { padding-top: 18vh; text-align: center; }
+  .login .brand { font-size: 26px; }
+  .login form { margin-top: 28px; text-align: left; }
+  .back { font: inherit; border: 0; background: none; color: var(--accent); padding: 16px 0 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<section id="login" class="login" hidden>
+  <main>
+    <div class="brand">寿司メニュー提案<small>素材から、今日の新しい一品を</small></div>
+    <form id="loginForm">
+      <label for="shopCode" class="hint" style="display:block;margin:0 0 8px">店舗コード</label>
+      <input id="shopCode" type="text" autocomplete="off" autocapitalize="characters" placeholder="例：DEMO">
+      <button class="btn primary" type="submit">はじめる</button>
+      <p id="loginError" class="error" hidden></p>
+    </form>
+  </main>
+</section>
+
+<section id="app" hidden>
+  <header>
+    <div class="bar">
+      <div class="brand">寿司メニュー提案<small id="shopName"></small></div>
+      <div class="tabs" role="tablist">
+        <button role="tab" data-tab="propose" aria-selected="true">提案</button>
+        <button role="tab" data-tab="history" aria-selected="false">履歴</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <p id="demoBanner" class="banner" hidden>デモモードです。APIキーを設定すると、AIが実際に提案を作ります。今は見本を表示しています。</p>
+
+    <div id="tab-propose">
+      <form id="proposeForm">
+        <h2>一　素材</h2>
+        <p class="hint">手元にある魚・野菜・果物などを入れてください（8つまで）</p>
+        <div class="row">
+          <input id="ingInput" type="text" enterkeyhint="done" placeholder="例：戻り鰹">
+          <button id="ingAdd" class="btn" type="button">追加</button>
+        </div>
+        <div id="chips" class="chips"></div>
+        <div class="picks" id="picks"></div>
+
+        <h2>二　種類</h2>
+        <div class="seg" id="seg">
+          <button type="button" data-cat="nigiri" aria-pressed="true"><b>握り</b><span>一貫の新ネタ</span></button>
+          <button type="button" data-cat="dish" aria-pressed="false"><b>一品料理</b><span>つまみ・小鉢</span></button>
+        </div>
+
+        <h2>三　要望 <span class="hint" style="font-family:inherit">（任意）</span></h2>
+        <textarea id="notes" maxlength="300" placeholder="例：1貫800円以内／日本酒に合うもの／お子様向け"></textarea>
+
+        <button id="submit" class="btn primary" type="submit">提案を見る</button>
+      </form>
+      <div id="result"></div>
+    </div>
+
+    <div id="tab-history" hidden>
+      <div id="historyList"></div>
+    </div>
+  </main>
+</section>
+
+<script>
+const PICKS = ["戻り鰹", "秋刀魚", "いくら", "金目鯛", "鯖", "松茸", "柿", "柚子"];
+const CAT_LABEL = { nigiri: "握り", dish: "一品料理" };
+const RATINGS = [["adopted", "採用する"], ["tried", "試作した"], ["not_fit", "合わなかった"]];
+const state = { code: null, ingredients: [], category: "nigiri", history: [] };
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const store = {
+  get() { try { return localStorage.getItem("shopCode"); } catch { return null; } },
+  set(v) { try { v ? localStorage.setItem("shopCode", v) : localStorage.removeItem("shopCode"); } catch {} },
+};
+
+async function api(path, options = {}) {
+  const res = await fetch(path, { ...options, headers: { "content-type": "application/json", "x-shop-code": state.code ?? "", ...options.headers } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "通信に失敗しました");
+  return data;
+}
+
+async function login(code) {
+  state.code = code;
+  const shop = await api("/api/shop");
+  store.set(shop.code);
+  $("shopName").textContent = shop.name;
+  $("login").hidden = true;
+  $("app").hidden = false;
+  const status = await api("/api/status");
+  $("demoBanner").hidden = status.mode !== "demo";
+}
+
+$("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("loginError").hidden = true;
+  try { await login($("shopCode").value.trim()); }
+  catch (err) { $("loginError").textContent = err.message; $("loginError").hidden = false; }
+});
+
+function renderChips() {
+  $("chips").innerHTML = state.ingredients
+    .map((s, i) => `<span class="chip">${esc(s)}<button type="button" aria-label="${esc(s)}を削除" data-i="${i}">×</button></span>`)
+    .join("");
+  $("picks").innerHTML = PICKS.filter((p) => !state.ingredients.includes(p))
+    .map((p) => `<button type="button" data-p="${esc(p)}">＋${esc(p)}</button>`).join("");
+}
+function addIngredient(raw) {
+  for (const s of raw.split(/[、,，\s]+/).map((x) => x.trim()).filter(Boolean)) {
+    if (!state.ingredients.includes(s) && state.ingredients.length < 8) state.ingredients.push(s);
+  }
+  renderChips();
+}
+$("ingAdd").onclick = () => { addIngredient($("ingInput").value); $("ingInput").value = ""; $("ingInput").focus(); };
+$("ingInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); $("ingAdd").click(); }
+});
+$("chips").onclick = (e) => { const i = e.target.dataset?.i; if (i !== undefined) { state.ingredients.splice(+i, 1); renderChips(); } };
+$("picks").onclick = (e) => { const p = e.target.dataset?.p; if (p) addIngredient(p); };
+$("seg").onclick = (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  state.category = b.dataset.cat;
+  for (const x of $("seg").children) x.setAttribute("aria-pressed", String(x === b));
+};
+
+function dishCard(proposal, dish, index) {
+  const rated = proposal.ratings?.[index];
+  const list = (items) => items.map((x) => `<li>${esc(x)}</li>`).join("");
+  return `<article class="card">
+    <div class="num">其の${["一", "二", "三", "四", "五"][index] ?? index + 1}</div>
+    <h3>${esc(dish.name)}</h3>
+    <p class="concept">${esc(dish.concept)}</p>
+    <p class="basis">${esc(dish.trend_basis)}</p>
+    <details>
+      <summary>レシピを見る</summary>
+      <h4>材料</h4>
+      <table>${dish.ingredients.map((x) => `<tr><td>${esc(x.item)}</td><td>${esc(x.amount)}</td></tr>`).join("")}</table>
+      <h4>手順</h4><ol>${list(dish.steps)}</ol>
+      <h4>職人のポイント</h4><ul>${list(dish.shokunin_points)}</ul>
+      <h4>盛り付け</h4><p>${esc(dish.plating)}</p>
+      <h4>合わせる飲み物</h4><p>${esc(dish.pairing)}</p>
+      <h4>原価・価格の目安</h4><p>${esc(dish.cost_note)}</p>
+    </details>
+    <div class="fb" data-proposal="${proposal.id}" data-index="${index}">
+      ${RATINGS.map(([r, label]) => `<button type="button" data-r="${r}" aria-pressed="${rated === r}">${label}</button>`).join("")}
+    </div>
+  </article>`;
+}
+
+function renderProposal(target, proposal) {
+  const head = `<h2>${esc(CAT_LABEL[proposal.category] ?? "")}の提案：${esc(proposal.ingredients.join("・"))}</h2>`;
+  target.innerHTML = head + proposal.proposals.map((d, i) => dishCard(proposal, d, i)).join("");
+}
+
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest(".fb button"); if (!b) return;
+  const box = b.parentElement;
+  const previous = [...box.children].find((x) => x.getAttribute("aria-pressed") === "true");
+  for (const x of box.children) x.setAttribute("aria-pressed", String(x === b));
+  try {
+    await api("/api/feedback", { method: "POST", body: JSON.stringify({ proposal_id: +box.dataset.proposal, dish_index: +box.dataset.index, rating: b.dataset.r }) });
+  } catch (err) {
+    for (const x of box.children) x.setAttribute("aria-pressed", String(x === previous));
+    alert(err.message);
+  }
+});
+
+$("proposeForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if ($("ingInput").value.trim()) { addIngredient($("ingInput").value); $("ingInput").value = ""; }
+  const result = $("result");
+  if (state.ingredients.length === 0) { result.innerHTML = `<p class="error">素材を1つ以上入れてください</p>`; return; }
+  $("submit").disabled = true;
+  result.innerHTML = `<p class="loading">提案を考えています<span class="dots"></span><br><small>30秒〜1分ほどかかります</small></p>`;
+  result.scrollIntoView({ behavior: "smooth", block: "start" });
+  try {
+    const data = await api("/api/propose", { method: "POST", body: JSON.stringify({ ingredients: state.ingredients, category: state.category, notes: $("notes").value }) });
+    renderProposal(result, { ...data, ingredients: [...state.ingredients], category: state.category, ratings: {} });
+    result.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (err) {
+    result.innerHTML = `<p class="error">${esc(err.message)}</p>`;
+  } finally {
+    $("submit").disabled = false;
+  }
+});
+
+async function showHistory() {
+  const list = $("historyList");
+  list.innerHTML = `<p class="loading">読み込み中</p>`;
+  try {
+    state.history = await api("/api/history");
+    list.innerHTML = state.history.length
+      ? `<h2>これまでの提案</h2>` + state.history.map((h, i) => `<button class="hist" data-h="${i}">
+          <small>${esc(h.created_at)}・${esc(CAT_LABEL[h.category])}${h.mode === "demo" ? "・デモ" : ""}</small>
+          ${esc(h.ingredients.join("・"))}：${esc(h.proposals.map((p) => p.name).join(" / "))}</button>`).join("")
+      : `<p class="loading">まだ提案がありません</p>`;
+  } catch (err) { list.innerHTML = `<p class="error">${esc(err.message)}</p>`; }
+}
+$("historyList").onclick = (e) => {
+  const b = e.target.closest(".hist"); if (!b) return;
+  const list = $("historyList");
+  renderProposal(list, state.history[+b.dataset.h]);
+  list.insertAdjacentHTML("afterbegin", `<button class="back" type="button" id="backHist">← 履歴に戻る</button>`);
+  $("backHist").onclick = showHistory;
+  window.scrollTo(0, 0);
+};
+
+document.querySelector(".tabs").onclick = (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  for (const x of b.parentElement.children) x.setAttribute("aria-selected", String(x === b));
+  $("tab-propose").hidden = b.dataset.tab !== "propose";
+  $("tab-history").hidden = b.dataset.tab !== "history";
+  if (b.dataset.tab === "history") showHistory();
+};
+
+renderChips();
+const saved = store.get();
+if (saved) login(saved).catch(() => { store.set(null); $("login").hidden = false; });
+else $("login").hidden = false;
+</script>
+</body>
+</html>

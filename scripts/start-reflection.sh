@@ -29,7 +29,8 @@ if [ -z "$SLUG" ]; then
   exit 1
 fi
 
-DB="/Users/tom/dev/hojokin-db/.claude/db/agents.db"
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+DB="${AGENTS_DB_PATH:-$REPO_ROOT/.claude/db/agents.db}"
 
 # parent カラムは NULL or 整数
 PARENT_SQL="NULL"

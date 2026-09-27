@@ -1,8 +1,8 @@
 {
-  "project": "hojokin",
-  "description": "メタ自己改善システム (ゲンガー集団 / ミュウ・ミューツー / アルセウス) のスケジュール",
+  "project": "sushi-menu",
+  "description": "寿司メニュー提案アプリの学習ループ（ヨルノズク / ゲンガー集団 / アルセウス）と、自己改変ループ（ミュウ・ミューツー）のスケジュール",
   "naming_convention": "com.claude.hojokin.{task}",
-  "updated_at": "2026-04-21",
+  "updated_at": "2026-09-27",
   "jobs": [
     {
       "label": "com.claude.hojokin.pokemon-dashboard",
@@ -36,32 +36,47 @@
     {
       "label": "com.claude.hojokin.megagengar-orchestrator",
       "agent": "megagengar",
-      "description": "仮説パイプライン全体オーケストレーター。毎日2:00にゴース→ゴースト→ゲンガーをTask起動。月初は長期メタレビュー兼務",
+      "description": "寿司メニュー学習ループの司令塔。毎日2:00にヨルノズク→ゴース→ゴースト→ゲンガーをサブエージェントとして起動",
       "schedule": "毎日 2:00",
       "model": "opus",
       "agent_md": ".claude/agents/megagengar-orchestrator.md",
       "log": "~/.claude/logs/hojokin-megagengar-orchestrator.log",
-      "note": "2026-04-22 新規。進化軸と実行順を揃える再編で supervisor-worker パターンに移行",
+      "note": "2026-09-27 寿司メニュー提案アプリ向けに再編。リサーチ担当ヨルノズクを Stage 0 として追加",
       "subagents": [
         {
+          "name": "noctowl-researcher",
+          "role": "SNS・Webから寿司メニューのトレンドを収集（Stage 0）",
+          "agent_md": ".claude/agents/noctowl-researcher.md",
+          "model": "sonnet"
+        },
+        {
           "name": "gastly-validator",
-          "role": "実測・検証+playbook昇華（Stage 1）",
+          "role": "実行中の実験を職人の評価で測定・判定、勝ち負けパターンに昇華（Stage 1）",
           "agent_md": ".claude/agents/gastly-validator.md",
           "model": "sonnet"
         },
         {
           "name": "haunter-hypothesizer",
-          "role": "仮説生成 3LLM（Stage 2）",
+          "role": "提案方針の仮説を3視点で最大6件（Stage 2）",
           "agent_md": ".claude/agents/haunter-hypothesizer.md",
           "model": "opus"
         },
         {
           "name": "gengar-selector",
-          "role": "Eloトーナメント+guidance発行（Stage 3）",
+          "role": "3審査視点で採点し、上位をアプリの提案方針として実験開始（Stage 3）",
           "agent_md": ".claude/agents/gengar-selector.md",
           "model": "sonnet"
         }
       ]
+    },
+    {
+      "label": "com.claude.sushi.arceus-knowledge-editor",
+      "agent": "arceus",
+      "description": "寿司知識の編集長。毎週月曜3:00に勝ちパターン・トレンドを素材ごとの知識にまとめる",
+      "schedule": "毎週月曜 3:00",
+      "model": "opus",
+      "agent_md": ".claude/agents/arceus-knowledge-editor.md",
+      "log": "~/.claude/logs/sushi-arceus-knowledge-editor.log"
     }
   ]
 }
