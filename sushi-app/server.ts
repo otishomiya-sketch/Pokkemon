@@ -10,6 +10,8 @@
  *   SUSHI_DB_PATH         DB の置き場所（永続ボリューム上に置く）
  *   SUSHI_LOOP_TOKEN      Mac のエージェントが /api/loop で DB を読み書きするための合言葉（無ければ /api/loop は無効）
  *   DAILY_PROPOSAL_LIMIT  1 店舗 1 日あたりの提案回数の上限（既定 30。API の使いすぎ防止）
+ *   OPENAI_API_KEY        あればメニューのイメージ画像を作れる（無ければボタンを出さない）
+ *   DAILY_IMAGE_LIMIT     1 店舗 1 日あたりの画像の枚数の上限（既定 20）
  */
 
 import { resolve, dirname } from "path";
@@ -18,6 +20,9 @@ import { openDb, findShop, selectTrends, feedbackSignals, knowledgeFor, activeGu
 import { proposeLive, proposeDemo, hasCredentials, ProposalError, MODEL } from "./src/propose";
 import { runLoop, LoopError } from "./src/loop-core";
 import { timingSafeEqual } from "crypto";
+import { existsSync } from "fs";
+import { basename } from "path";
+import { IMAGE_DIR, imagesEnabled, existingImage, generateDishImage, imageUrlsFor, ImageError } from "./src/images";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const db = openDb();
@@ -25,6 +30,7 @@ const PORT = Number(process.env.PORT ?? 5800);
 const HOST = process.env.HOST ?? "127.0.0.1";
 const LOOP_TOKEN = process.env.SUSHI_LOOP_TOKEN ?? "";
 const DAILY_LIMIT = Number(process.env.DAILY_PROPOSAL_LIMIT ?? 30);
+const DAILY_IMAGE_LIMIT = Number(process.env.DAILY_IMAGE_LIMIT ?? 20);
 
 const json = (data: unknown, status = 200) => Response.json(data, { status });
 const pickOne = <T,>(items: T[]): T[] => (items.length ? [items[Math.floor(Math.random() * items.length)]!] : []);
@@ -119,6 +125,46 @@ async function handleFeedback(req: Request) {
   return json({ ok: true });
 }
 
+async function handleImage(req: Request, proposalId: number, dishIndex: number) {
+  const shop = shopFrom(req);
+  if (!shop) return fail("店舗コードが正しくありません", 401);
+  if (!imagesEnabled()) return fail("イメージ画像はまだ使えません", 404);
+  const proposal = db
+    .query<{ id: number; category: string; result: string }, [number, number]>(
+      "SELECT id, category, result FROM proposals WHERE id = ? AND shop_id = ?",
+    )
+    .get(proposalId, shop.id);
+  const dish = proposal ? JSON.parse(proposal.result).proposals?.[dishIndex] : null;
+  if (!proposal || !dish) return fail("提案が見つかりません", 404);
+
+  const cached = existingImage(db, proposal.id, dishIndex);
+  if (cached) return json({ url: cached });
+
+  const today = db
+    .query<{ c: number }, [number]>(
+      `SELECT COUNT(*) AS c FROM dish_images i JOIN proposals p ON p.id = i.proposal_id
+        WHERE p.shop_id = ? AND date(i.created_at) = date('now','localtime')`,
+    )
+    .get(shop.id)!.c;
+  if (today >= DAILY_IMAGE_LIMIT) return fail(`今日の画像の上限（${DAILY_IMAGE_LIMIT} 枚）に達しました。明日またお使いください`, 429);
+
+  try {
+    return json({ url: await generateDishImage(db, proposal.id, dishIndex, dish, proposal.category) });
+  } catch (error) {
+    if (error instanceof ImageError) return fail(error.message, 502);
+    console.error(error);
+    return fail("画像の作成中にエラーが起きました", 500);
+  }
+}
+
+function serveImage(name: string) {
+  const file = basename(name);
+  if (!/^[0-9]+-[0-9]+-[0-9a-f]{16}\.png$/.test(file)) return fail("Not found", 404);
+  const path = resolve(IMAGE_DIR, file);
+  if (!existsSync(path)) return fail("Not found", 404);
+  return new Response(Bun.file(path), { headers: { "cache-control": "public, max-age=31536000, immutable" } });
+}
+
 /** Mac のエージェント用。合言葉が一致したときだけ、学習ループのコマンドをこの DB に対して実行する */
 async function handleLoop(req: Request) {
   const given = Buffer.from((req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, ""));
@@ -153,6 +199,7 @@ function handleHistory(req: Request) {
          JOIN proposals p ON p.id = f.proposal_id WHERE p.shop_id = ?`,
     )
     .all(shop.id);
+  const images = imageUrlsFor(db, rows.map((r) => r.id));
   return json(
     rows.map((r) => ({
       id: r.id,
@@ -163,6 +210,7 @@ function handleHistory(req: Request) {
       created_at: r.created_at,
       ...JSON.parse(r.result),
       ratings: Object.fromEntries(ratings.filter((f) => f.proposal_id === r.id).map((f) => [f.dish_index, f.rating])),
+      images: images[r.id] ?? {},
     })),
   );
 }
@@ -175,7 +223,10 @@ Bun.serve({
     const route = `${req.method} ${url.pathname}`;
 
     if (route === "GET /") return new Response(Bun.file(resolve(here, "public/index.html")));
-    if (route === "GET /api/status") return json({ mode: hasCredentials() ? "live" : "demo" });
+    if (route === "GET /api/status") return json({ mode: hasCredentials() ? "live" : "demo", images: imagesEnabled() });
+    const imageRoute = /^POST \/api\/proposals\/(\d+)\/dishes\/(\d+)\/image$/.exec(route);
+    if (imageRoute) return handleImage(req, Number(imageRoute[1]), Number(imageRoute[2]));
+    if (req.method === "GET" && url.pathname.startsWith("/images/")) return serveImage(url.pathname.slice("/images/".length));
     if (route === "GET /api/shop") {
       const shop = shopFrom(req);
       return shop ? json({ code: shop.code, name: shop.name }) : fail("店舗コードが見つかりません", 404);

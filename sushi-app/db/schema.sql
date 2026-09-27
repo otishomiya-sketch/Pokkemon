@@ -122,3 +122,13 @@ CREATE TABLE IF NOT EXISTS feedback (
   created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   UNIQUE (proposal_id, dish_index)
 );
+
+-- 提案メニューのイメージ画像（職人が「イメージ画像を見る」を押したときだけ作る）
+CREATE TABLE IF NOT EXISTS dish_images (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  proposal_id INTEGER NOT NULL REFERENCES proposals(id),
+  dish_index  INTEGER NOT NULL,
+  file        TEXT NOT NULL,               -- images/ フォルダ内のファイル名
+  created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  UNIQUE (proposal_id, dish_index)
+);

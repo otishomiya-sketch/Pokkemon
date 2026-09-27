@@ -76,6 +76,13 @@
   td:last-child { text-align: right; color: var(--muted); padding-left: 12px; }
   ol, ul { margin: 0; padding-left: 1.3em; }
   li { margin: 4px 0; }
+  .photo { margin: 14px 0 0; display: flex; flex-direction: column; gap: 6px; }
+  .photo img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 10px; background: var(--soft); display: block; }
+  .photo figcaption { font-size: 12px; color: var(--muted); }
+  .photo-btn { margin-top: 14px; width: 100%; font: inherit; font-size: 14px; padding: 11px; border-radius: 10px;
+               border: 1px dashed var(--line); background: transparent; color: var(--fg); }
+  .photo-btn:disabled { color: var(--muted); }
+  .photo-err { margin-top: 8px; font-size: 13px; color: var(--accent); }
   .fb { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 16px; }
   .fb button { font: inherit; font-size: 13px; padding: 10px 4px; border-radius: 10px; border: 1px solid var(--line);
                background: transparent; color: var(--fg); }
@@ -155,7 +162,7 @@
 const PICKS = ["戻り鰹", "秋刀魚", "いくら", "金目鯛", "鯖", "松茸", "柿", "柚子"];
 const CAT_LABEL = { nigiri: "握り", dish: "一品料理" };
 const RATINGS = [["adopted", "採用する"], ["tried", "試作した"], ["not_fit", "合わなかった"]];
-const state = { code: null, ingredients: [], category: "nigiri", history: [] };
+const state = { code: null, ingredients: [], category: "nigiri", history: [], imagesEnabled: false };
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -180,6 +187,7 @@ async function login(code) {
   $("app").hidden = false;
   const status = await api("/api/status");
   $("demoBanner").hidden = status.mode !== "demo";
+  state.imagesEnabled = Boolean(status.images);
 }
 
 $("loginForm").addEventListener("submit", async (e) => {
@@ -214,6 +222,14 @@ $("seg").onclick = (e) => {
   for (const x of $("seg").children) x.setAttribute("aria-pressed", String(x === b));
 };
 
+const PHOTO_NOTE = "AIによるイメージです。実際の盛り付けとは異なります";
+function photoBlock(proposal, index) {
+  const url = proposal.images?.[index];
+  if (url) return `<figure class="photo"><img src="${esc(url)}" alt="${esc(proposal.proposals[index].name)}のイメージ" loading="lazy"><figcaption>${PHOTO_NOTE}</figcaption></figure>`;
+  if (!state.imagesEnabled) return "";
+  return `<div class="photo-slot"><button type="button" class="photo-btn" data-proposal="${proposal.id}" data-index="${index}">イメージ画像を見る</button></div>`;
+}
+
 function dishCard(proposal, dish, index) {
   const rated = proposal.ratings?.[index];
   const list = (items) => items.map((x) => `<li>${esc(x)}</li>`).join("");
@@ -222,6 +238,7 @@ function dishCard(proposal, dish, index) {
     <h3>${esc(dish.name)}</h3>
     <p class="concept">${esc(dish.concept)}</p>
     <p class="basis">${esc(dish.trend_basis)}</p>
+    ${photoBlock(proposal, index)}
     <details>
       <summary>レシピを見る</summary>
       <h4>材料</h4>
@@ -242,6 +259,26 @@ function renderProposal(target, proposal) {
   const head = `<h2>${esc(CAT_LABEL[proposal.category] ?? "")}の提案：${esc(proposal.ingredients.join("・"))}</h2>`;
   target.innerHTML = head + proposal.proposals.map((d, i) => dishCard(proposal, d, i)).join("");
 }
+
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest(".photo-btn"); if (!b) return;
+  const slot = b.parentElement;
+  const proposalId = +b.dataset.proposal, index = +b.dataset.index;
+  b.disabled = true;
+  b.innerHTML = `画像を作っています<span class="dots"></span>（30秒ほど）`;
+  slot.querySelector(".photo-err")?.remove();
+  try {
+    const { url } = await api(`/api/proposals/${proposalId}/dishes/${index}/image`, { method: "POST" });
+    const cached = state.history.find((h) => h.id === proposalId);
+    if (cached) (cached.images ??= {})[index] = url;
+    const name = b.closest(".card").querySelector("h3").textContent;
+    slot.outerHTML = `<figure class="photo"><img src="${esc(url)}" alt="${esc(name)}のイメージ"><figcaption>${PHOTO_NOTE}</figcaption></figure>`;
+  } catch (err) {
+    b.disabled = false;
+    b.textContent = "もう一度試す";
+    slot.insertAdjacentHTML("beforeend", `<p class="photo-err">${esc(err.message)}</p>`);
+  }
+});
 
 document.addEventListener("click", async (e) => {
   const b = e.target.closest(".fb button"); if (!b) return;
@@ -266,7 +303,7 @@ $("proposeForm").addEventListener("submit", async (e) => {
   result.scrollIntoView({ behavior: "smooth", block: "start" });
   try {
     const data = await api("/api/propose", { method: "POST", body: JSON.stringify({ ingredients: state.ingredients, category: state.category, notes: $("notes").value }) });
-    renderProposal(result, { ...data, ingredients: [...state.ingredients], category: state.category, ratings: {} });
+    renderProposal(result, { ...data, ingredients: [...state.ingredients], category: state.category, ratings: {}, images: {} });
     result.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (err) {
     result.innerHTML = `<p class="error">${esc(err.message)}</p>`;
