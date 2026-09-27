@@ -16,6 +16,20 @@ bun server.ts                # → http://localhost:5800/  店舗コード DEMO 
 - スマホ実機で試す: `HOST=0.0.0.0 bun server.ts` → 同じ Wi-Fi のスマホから `http://<MacのIP>:5800/`
 - 店舗を追加: `bun scripts/seed.ts --shop CODE 店名`
 
+## クラウドで公開する（Railway）
+
+アプリと DB はクラウド、毎晩のエージェントは Mac、という分担にする。エージェントは `SUSHI_REMOTE_URL` と `SUSHI_LOOP_TOKEN` があれば、クラウドの `/api/loop` を通して DB を読み書きする。
+
+1. Railway で GitHub のこのリポジトリからサービスを作り、**Root Directory を `sushi-app`** にする（`Dockerfile` と `railway.json` で自動ビルド）
+2. **Volume** を追加し、マウント先を `/data` にする（DB `sushi.db` の置き場所。これが無いと再起動でデータが消える）
+3. **Variables** に `ANTHROPIC_API_KEY` / `ANTHROPIC_WORKSPACE_ID`（組織単位のキーのときだけ）/ `SUSHI_LOOP_TOKEN` を入れる。`DAILY_PROPOSAL_LIMIT`（既定 30）は任意
+4. **Networking → Generate Domain** で公開 URL を作る
+5. Mac のリポジトリ直下の `.env.local` に `SUSHI_REMOTE_URL=<公開 URL>` と、同じ `SUSHI_LOOP_TOKEN` を書く
+6. 手元の学習データを移す: `bun sushi-app/scripts/loop.ts migrate-to-remote`（1 回だけ）
+7. 店舗を作る: `bun sushi-app/scripts/loop.ts add-shop --json '{"name":"店名"}'` → 表示された店舗コードを店に渡す
+
+クラウドには見本トレンドとデモ店舗（DEMO）は入らない。1 店舗 1 日の提案回数には上限がある（API の使いすぎ防止）。
+
 ## 学習ループ（エージェント）
 
 | 担当 | ファイル | 仕事 | 周期 |

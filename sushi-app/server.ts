@@ -5,17 +5,26 @@
  * 起動: bun sushi-app/server.ts   → http://localhost:5800/
  * スマホ実機で試す場合: HOST=0.0.0.0 bun sushi-app/server.ts（同じWi-Fi内から http://<MacのIP>:5800/）
  * ANTHROPIC_API_KEY が無い場合はデモモード（固定の見本を返す）で動く。
+ *
+ * クラウドで使う環境変数:
+ *   SUSHI_DB_PATH         DB の置き場所（永続ボリューム上に置く）
+ *   SUSHI_LOOP_TOKEN      Mac のエージェントが /api/loop で DB を読み書きするための合言葉（無ければ /api/loop は無効）
+ *   DAILY_PROPOSAL_LIMIT  1 店舗 1 日あたりの提案回数の上限（既定 30。API の使いすぎ防止）
  */
 
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { openDb, findShop, selectTrends, feedbackSignals, knowledgeFor, activeGuidelines, learnedPatterns, type Category } from "./src/db";
 import { proposeLive, proposeDemo, hasCredentials, ProposalError, MODEL } from "./src/propose";
+import { runLoop, LoopError } from "./src/loop-core";
+import { timingSafeEqual } from "crypto";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const db = openDb();
 const PORT = Number(process.env.PORT ?? 5800);
 const HOST = process.env.HOST ?? "127.0.0.1";
+const LOOP_TOKEN = process.env.SUSHI_LOOP_TOKEN ?? "";
+const DAILY_LIMIT = Number(process.env.DAILY_PROPOSAL_LIMIT ?? 30);
 
 const json = (data: unknown, status = 200) => Response.json(data, { status });
 const pickOne = <T,>(items: T[]): T[] => (items.length ? [items[Math.floor(Math.random() * items.length)]!] : []);
@@ -40,6 +49,11 @@ async function handlePropose(req: Request) {
   const notes = typeof body?.notes === "string" ? body.notes.slice(0, 300) : "";
   if (ingredients.length === 0) return fail("素材を1つ以上入力してください");
   if (category !== "nigiri" && category !== "dish") return fail("握りか一品料理を選んでください");
+
+  const today = db
+    .query<{ c: number }, [number]>("SELECT COUNT(*) AS c FROM proposals WHERE shop_id = ? AND date(created_at) = date('now','localtime')")
+    .get(shop.id)!.c;
+  if (today >= DAILY_LIMIT) return fail(`今日の提案回数の上限（${DAILY_LIMIT} 回）に達しました。明日またお使いください`, 429);
 
   const input = {
     ingredients,
@@ -105,6 +119,22 @@ async function handleFeedback(req: Request) {
   return json({ ok: true });
 }
 
+/** Mac のエージェント用。合言葉が一致したときだけ、学習ループのコマンドをこの DB に対して実行する */
+async function handleLoop(req: Request) {
+  const given = Buffer.from((req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, ""));
+  const expected = Buffer.from(LOOP_TOKEN);
+  if (!LOOP_TOKEN || given.length !== expected.length || !timingSafeEqual(given, expected)) return fail("認証に失敗しました", 401);
+  const body = (await req.json().catch(() => null)) as { cmd?: string; args?: unknown; input?: unknown } | null;
+  const args = Array.isArray(body?.args) ? body.args.map(String) : [];
+  try {
+    return json(runLoop(db, body?.cmd, args, body?.input));
+  } catch (error) {
+    if (error instanceof LoopError) return fail(error.message, 400);
+    console.error(error);
+    return fail("コマンドの実行中にエラーが起きました", 500);
+  }
+}
+
 function handleHistory(req: Request) {
   const shop = shopFrom(req);
   if (!shop) return fail("店舗コードが正しくありません", 401);
@@ -153,6 +183,7 @@ Bun.serve({
     if (route === "POST /api/propose") return handlePropose(req);
     if (route === "POST /api/feedback") return handleFeedback(req);
     if (route === "GET /api/history") return handleHistory(req);
+    if (route === "POST /api/loop") return handleLoop(req);
     return fail("Not found", 404);
   },
 });
