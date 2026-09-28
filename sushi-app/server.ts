@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * 寿司メニュー提案アプリ サーバー
+ * "鮨"新メニュー開発APP サーバー
  *
  * 起動: bun sushi-app/server.ts   → http://localhost:5800/
  * スマホ実機で試す場合: HOST=0.0.0.0 bun sushi-app/server.ts（同じWi-Fi内から http://<MacのIP>:5800/）

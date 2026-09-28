@@ -1,4 +1,4 @@
-# 寿司メニュー提案アプリ（Railway などのクラウド用）
+# "鮨"新メニュー開発APP（Railway などのクラウド用）
 FROM oven/bun:1.4-alpine
 
 WORKDIR /app
