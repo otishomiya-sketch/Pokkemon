@@ -34,6 +34,9 @@ const Dish = z.object({
 export const ProposalResult = z.object({ proposals: z.array(Dish) });
 export type ProposalResult = z.infer<typeof ProposalResult>;
 
+export const INBOUND_FEATURE = "観光客・訪日客が多い";
+export const wantsEnglish = (shop: ShopContext) => shop.features.includes(INBOUND_FEATURE);
+
 export interface ShopContext {
   concept: string | null;
   features: string[];
@@ -124,6 +127,9 @@ function buildUserPrompt(input: ProposeInput): string {
 
   return `## お店の情報
 ${shopInfo}
+
+## 英語の説明（guest_talk_en）
+${wantsEnglish(shop) ? "必要（訪日客が多いお店）" : "不要。guest_talk_en は必ず空文字にする"}
 
 ## 依頼
 種類：${CATEGORY_LABEL[input.category]}

@@ -17,7 +17,7 @@
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { openDb, findShop, selectTrends, feedbackSignals, knowledgeFor, activeGuidelines, learnedPatterns, recentDishNames, type Category } from "./src/db";
-import { proposeLive, proposeDemo, hasCredentials, ProposalError, MODEL } from "./src/propose";
+import { proposeLive, proposeDemo, hasCredentials, ProposalError, MODEL, wantsEnglish } from "./src/propose";
 import { runLoop, LoopError } from "./src/loop-core";
 import { PRICE_BANDS, FEATURE_OPTIONS, parseProfileInput, ProfileError } from "./src/shop-profile";
 import type { Shop } from "./src/db";
@@ -87,6 +87,9 @@ async function handlePropose(req: Request) {
     console.error(error);
     return fail("提案の作成中にエラーが起きました", 500);
   }
+
+  // 英語の説明は訪日客が多いお店だけ（AI が書いてしまっても消す）
+  if (!wantsEnglish(input.shop)) for (const p of result.proposals) p.guest_talk_en = "";
 
   const trendIds = [...new Set(result.proposals.flatMap((p) => p.trend_ids))];
   const { id } = db
