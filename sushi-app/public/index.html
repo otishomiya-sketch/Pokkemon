@@ -101,6 +101,9 @@
   .band b { color: var(--fg); }
   .intro { background: var(--soft); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-top: 16px; font-size: 15px; }
   .ok { color: var(--ok); font-size: 14px; margin-top: 12px; }
+  .talk { margin: 8px 0 0; padding: 12px 14px; border-left: 3px solid var(--accent); background: var(--soft);
+          border-radius: 0 10px 10px 0; font-size: 15px; line-height: 1.8; }
+  .talk-box summary { color: var(--fg); }
   .fb { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 16px; }
   .fb button { font: inherit; font-size: 13px; padding: 10px 4px; border-radius: 10px; border: 1px solid var(--line);
                background: transparent; color: var(--fg); }
@@ -339,6 +342,18 @@ function photoBlock(proposal, index) {
   return `<div class="photo-slot"><button type="button" class="photo-btn" data-proposal="${proposal.id}" data-index="${index}">イメージ画像を見る</button></div>`;
 }
 
+function talkBlock(dish) {
+  if (!dish.guest_talk) return "";
+  const points = (dish.talk_points || []).map((x) => `<li>${esc(x)}</li>`).join("");
+  const en = dish.guest_talk_en ? `<h4>English</h4><blockquote class="talk" lang="en">${esc(dish.guest_talk_en)}</blockquote>` : "";
+  return `<details class="talk-box">
+      <summary>お客様への説明</summary>
+      <blockquote class="talk">${esc(dish.guest_talk)}</blockquote>
+      ${points ? `<h4>伝えたいこと</h4><ul>${points}</ul>` : ""}
+      ${en}
+    </details>`;
+}
+
 function dishCard(proposal, dish, index) {
   const rated = proposal.ratings?.[index];
   const list = (items) => items.map((x) => `<li>${esc(x)}</li>`).join("");
@@ -358,6 +373,7 @@ function dishCard(proposal, dish, index) {
       <h4>合わせる飲み物</h4><p>${esc(dish.pairing)}</p>
       <h4>原価・価格の目安</h4><p>${esc(dish.cost_note)}</p>
     </details>
+    ${talkBlock(dish)}
     <div class="fb" data-proposal="${proposal.id}" data-index="${index}">
       ${RATINGS.map(([r, label]) => `<button type="button" data-r="${r}" aria-pressed="${rated === r}">${label}</button>`).join("")}
     </div>
