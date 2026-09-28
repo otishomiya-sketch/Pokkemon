@@ -67,6 +67,8 @@
   @keyframes dots { 0% { content: ""; } 25% { content: "・"; } 50% { content: "・・"; } 75% { content: "・・・"; } }
   .error { color: var(--accent); background: var(--soft); border-radius: 10px; padding: 12px; margin-top: 16px; font-size: 14px; }
   .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 16px; margin-top: 14px; }
+  .card .tag { font-family: var(--sans, inherit); font-size: 11px; letter-spacing: 0; color: var(--muted); border: 1px solid var(--line);
+               border-radius: 999px; padding: 1px 8px; margin-left: 8px; vertical-align: 1px; }
   .card .num { font-family: var(--serif); color: var(--accent); font-size: 13px; letter-spacing: .1em; }
   .card h3 { font-family: var(--serif); font-size: 20px; margin: 2px 0 4px; line-height: 1.4; }
   .card .concept { margin: 0; }
@@ -341,7 +343,7 @@ function dishCard(proposal, dish, index) {
   const rated = proposal.ratings?.[index];
   const list = (items) => items.map((x) => `<li>${esc(x)}</li>`).join("");
   return `<article class="card">
-    <div class="num">其の${["一", "二", "三", "四", "五"][index] ?? index + 1}</div>
+    <div class="num">其の${["一", "二", "三", "四", "五"][index] ?? index + 1}${dish.role ? `<span class="tag">${esc(dish.role)}</span>` : ""}${dish.cooking_method ? `<span class="tag">${esc(dish.cooking_method)}</span>` : ""}</div>
     <h3>${esc(dish.name)}</h3>
     <p class="concept">${esc(dish.concept)}</p>
     <p class="basis">${esc(dish.trend_basis)}</p>

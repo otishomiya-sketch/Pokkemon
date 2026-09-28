@@ -16,7 +16,7 @@
 
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
-import { openDb, findShop, selectTrends, feedbackSignals, knowledgeFor, activeGuidelines, learnedPatterns, type Category } from "./src/db";
+import { openDb, findShop, selectTrends, feedbackSignals, knowledgeFor, activeGuidelines, learnedPatterns, recentDishNames, type Category } from "./src/db";
 import { proposeLive, proposeDemo, hasCredentials, ProposalError, MODEL } from "./src/propose";
 import { runLoop, LoopError } from "./src/loop-core";
 import { PRICE_BANDS, FEATURE_OPTIONS, parseProfileInput, ProfileError } from "./src/shop-profile";
@@ -75,6 +75,7 @@ async function handlePropose(req: Request) {
     // 実行中の実験が複数あっても、1 回の提案に渡すのは 1 つだけ（どの方針が効いたかを分けて測るため）
     guidelines: pickOne(activeGuidelines(db, category)),
     patterns: learnedPatterns(db, category),
+    recentDishes: recentDishNames(db, shop.id, category),
   };
   const live = hasCredentials();
 

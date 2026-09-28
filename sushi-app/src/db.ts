@@ -91,7 +91,7 @@ export function findShop(db: Database, code: string): Shop | null {
  * 店舗の価格帯が分かっていれば、同じ価格帯 → 隣の価格帯・価格帯を問わないもの → それ以外、の順に優先する。
  */
 export function selectTrends(
-  db: Database, category: Category, ingredients: string[], priceBand: string | null = null, limit = 12,
+  db: Database, category: Category, ingredients: string[], priceBand: string | null = null, limit = 6,
 ): TrendRow[] {
   const near = priceBand ? new Set(neighborBands(priceBand as PriceBand)) : new Set<string>();
   const bandScore = (band: string | null) =>
@@ -108,11 +108,21 @@ export function selectTrends(
   const score = (t: TrendRow & { price_band: string | null }) =>
     ingredients.filter((i) => t.ingredients.includes(i) || t.title.includes(i) || t.summary.includes(i)).length * 3 +
     bandScore(t.price_band);
-  return rows
-    .map((t, order) => ({ t, s: score(t), order }))
-    .sort((a, b) => b.s - a.s || a.order - b.order)
-    .slice(0, limit)
-    .map((x) => x.t);
+  // 素材に合うトレンドは必ず入れ、残りは価格帯を考慮しつつ毎回ランダムに選ぶ（毎回同じトレンドばかり渡さないため）
+  const scored = rows.map((t) => ({ t, s: score(t), r: Math.random() }));
+  const matched = scored.filter((x) => x.s >= 3).sort((a, b) => b.s - a.s || a.r - b.r);
+  const others = scored.filter((x) => x.s < 3).sort((a, b) => b.s + b.r * 2 - (a.s + a.r * 2));
+  return [...matched, ...others].slice(0, limit).map((x) => x.t);
+}
+
+/** このお店に最近出した品の名前（同じ種類）。似た品を繰り返さないよう AI に渡す */
+export function recentDishNames(db: Database, shopId: number, category: Category, limit = 30): string[] {
+  const rows = db
+    .query<{ result: string }, [number, string]>(
+      "SELECT result FROM proposals WHERE shop_id = ? AND category = ? ORDER BY id DESC LIMIT 12",
+    )
+    .all(shopId, category);
+  return rows.flatMap((r) => (JSON.parse(r.result).proposals ?? []).map((d: { name: string }) => d.name)).slice(0, limit);
 }
 
 export interface FeedbackSignal {

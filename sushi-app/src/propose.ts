@@ -6,11 +6,20 @@ import { bandLabel } from "./shop-profile";
 
 export const MODEL = "claude-opus-5";
 
+export const COOKING_METHODS = [
+  "生・造り", "締め・漬け・熟成", "焼き・炙り", "蒸し", "揚げ", "煮る・炊く", "椀・汁", "和え・酢の物", "寿司飯を使う（小丼・巻き・押し）",
+] as const;
+
+export const DISH_ROLES = ["方針の品", "素材の品", "挑戦の品"] as const;
+
 const Dish = z.object({
+  role: z.enum(DISH_ROLES).describe("3品の役割。1品目=方針の品、2品目=素材の品、3品目=挑戦の品"),
   name: z.string().describe("メニュー名"),
+  cooking_method: z.enum(COOKING_METHODS).describe("主な調理法（3品で重ねない）"),
+  flavor_base: z.string().describe("味の軸を一言で（例: 柑橘と塩、白味噌、煎り酒、酒盗、出汁）。3品で重ねない"),
   concept: z.string().describe("一言コンセプト（40字程度）"),
-  trend_basis: z.string().describe("どのトレンドをどう踏まえたか"),
-  trend_ids: z.array(z.number()).describe("参考にしたトレンドの id"),
+  trend_basis: z.string().describe("発想の元。流行を使った品はどう活かしたか、使わなかった品は素材や季節からどう組み立てたか"),
+  trend_ids: z.array(z.number()).describe("参考にしたトレンドの id（使わなかった品は空）"),
   ingredients: z.array(z.object({ item: z.string(), amount: z.string() })).describe("材料と分量（1貫または1皿あたり）"),
   steps: z.array(z.string()).describe("仕込みから提供までの手順"),
   shokunin_points: z.array(z.string()).describe("職人向けの勘所（包丁・塩・酢・温度・熟成など）"),
@@ -39,6 +48,8 @@ export interface ProposeInput {
   knowledge: { subject: string; body: string }[];
   guidelines: Guideline[];
   patterns: { kind: string; title: string; action: string }[];
+  /** このお店に最近出した品（同じ種類）。似た品の繰り返しを避けるために使う */
+  recentDishes: string[];
 }
 
 const CATEGORY_LABEL: Record<Category, string> = { nigiri: "握り", dish: "一品料理" };
@@ -49,10 +60,21 @@ const SYSTEM = `あなたは日本の寿司店のメニュー開発を支える�
 - 提案は職人がそのまま仕込みに使えるレシピにする。分量・塩や酢の加減・温度・寝かせ時間など、手を動かすのに必要な情報を具体的に書く。
 - 入力された素材を主役にする。一般的な寿司店にある調味料や薬味は自由に足してよい。
 - 「お店の情報」のコンセプト・特徴・客単価に合わせる。とくに客単価に見合った素材の格・手間・原価・提供価格にする（客単価 3,000 円の店に 1 貫 2,000 円の品を出さない、客単価 30,000 円の店に手間の少ない大衆的な品ばかり出さない）。cost_note には、その客単価のお店での値付けの目安を書く。
-- 3品は方向性を変える（王道寄り・季節感・意外性など）。
-- 「最近のトレンド」は発想の参考にする。特定の店のメニューを再現したり店名を出したりせず、傾向を踏まえたオリジナルの提案にする。参考にしたトレンドは trend_ids に id を入れる。trend_basis は職人が読む文なので、id や「今週の方針」といった内部の言葉は書かず、どんな流行をどう活かしたかを書く。
+
+## 3品の組み立て（偏りを防ぐための決まり）
+3品はそれぞれ役割が違う。順番もこのとおりにする。
+1. 方針の品：「今週の提案方針」があればそれに沿う。無ければ「最近のトレンド」を1つ活かす。
+2. 素材の品：流行には頼らず、素材の持ち味・旬・お店のコンセプトから組み立てる。trend_ids は空にする。
+3. 挑戦の品：ほかの2品とは違う発想の一品。意外な組み合わせや、そのお店では珍しい技法に挑む。
+
+- 3品の cooking_method（調理法）はすべて違うものにする。
+- 3品の flavor_base（味の軸）も重ねない。酒盗・味噌・柑橘など、同じ調味料を2品以上の主役にしない。
+- 同じトレンドを2品以上で使わない。トレンドを使うのは多くても2品まで。
+- 「このお店に最近出した品」と同じ料理や、調理法と味の軸が同じよく似た料理は出さない。素材が違っても、同じ型（例:「○○の酒盗炙り」「○○のアラ出汁茶碗蒸し」「○○の部位串」）の繰り返しは避ける。
+
+## そのほか
+- 「最近のトレンド」は発想の参考にする。特定の店のメニューを再現したり店名を出したりせず、傾向を踏まえたオリジナルの提案にする。参考にしたトレンドは trend_ids に id を入れる。trend_basis は職人が読む文なので、id や「今週の方針」といった内部の言葉は書かない。
 - 「職人の評価」は他店での反応。好評の方向は活かし、不評の方向は避ける。
-- 「今週の提案方針」があれば、3品のうち少なくとも1品はその方針に沿わせる。
 - 「検証済みの傾向」の勝ちパターンは積極的に使い、負けパターンは避ける。
 - 食品衛生上の注意（寄生虫・加熱の要否など）が関わる素材は shokunin_points に必ず書く。アニサキスなどの寄生虫は、目視確認だけでは防げないので「-20℃で24時間以上の冷凍」または「十分な加熱」を対策として書き、目視は補助として扱う。`;
 
@@ -76,6 +98,8 @@ function buildUserPrompt(input: ProposeInput): string {
     ? input.knowledge.map((k) => `- ${k.subject}：${k.body}`).join("\n")
     : "（まだありません）";
 
+  const recent = input.recentDishes.length ? input.recentDishes.map((d) => `- ${d}`).join("\n") : "（まだありません）";
+
   const shop = input.shop;
   const shopInfo = [
     `コンセプト：${shop.concept || "未登録"}`,
@@ -94,8 +118,11 @@ ${shopInfo}
 ## 最近のトレンド
 ${trends}
 
-## 今週の提案方針
+## 今週の提案方針（1品目だけに使う）
 ${guidelines}
+
+## このお店に最近出した品（似た品は避ける）
+${recent}
 
 ## 検証済みの傾向
 ${patterns}
@@ -147,8 +174,14 @@ export function proposeDemo(input: ProposeInput): ProposalResult {
   const sub = input.ingredients[1] ?? "柑橘";
   const trendIds = input.trends.slice(0, 2).map((t) => t.id);
   const isNigiri = input.category === "nigiri";
-  const make = (name: string, concept: string, extra: string) => ({
+  const make = (
+    role: (typeof DISH_ROLES)[number], cooking_method: (typeof COOKING_METHODS)[number], flavor_base: string,
+    name: string, concept: string, extra: string,
+  ) => ({
+    role,
     name,
+    cooking_method,
+    flavor_base,
     concept,
     trend_basis: "【デモ表示】APIキーを設定すると、実際のトレンドを踏まえた説明がここに入ります。",
     trend_ids: trendIds,
@@ -170,9 +203,9 @@ export function proposeDemo(input: ProposeInput): ProposalResult {
   });
   return {
     proposals: [
-      make(`${main}の${sub}締め${isNigiri ? "握り" : ""}`, "王道の締めに香りを重ねる一品", "煎り胡麻"),
-      make(`炙り${main}と${sub}おろし`, "炙りの香ばしさと季節の香り", "おろし大根"),
-      make(`${main}の昆布〆 ${sub}ジュレ`, "食感で驚かせる新しい一手", "ジュレ"),
+      make("方針の品", "締め・漬け・熟成", "柑橘と塩", `${main}の${sub}締め${isNigiri ? "握り" : ""}`, "王道の締めに香りを重ねる一品", "煎り胡麻"),
+      make("素材の品", "焼き・炙り", "醤油と大根", `炙り${main}と${sub}おろし`, "炙りの香ばしさと季節の香り", "おろし大根"),
+      make("挑戦の品", "和え・酢の物", "昆布出汁のジュレ", `${main}の昆布〆 ${sub}ジュレ`, "食感で驚かせる新しい一手", "ジュレ"),
     ],
   };
 }
