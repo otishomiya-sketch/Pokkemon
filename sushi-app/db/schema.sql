@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS trends (
   season       TEXT,                         -- spring/summer/autumn/winter/all
   region       TEXT,
   price_band   TEXT,                         -- どの価格帯のお店の流行か（NULL は価格帯を問わない）
+  origin       TEXT,                         -- japan / overseas（NULL は不明・見本）
   source_type  TEXT NOT NULL CHECK (source_type IN ('sns','web','sample')),
   source_url   TEXT,
   collected_by TEXT,                         -- 書き込んだエージェント

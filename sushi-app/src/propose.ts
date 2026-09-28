@@ -73,7 +73,7 @@ const SYSTEM = `あなたは日本の寿司店のメニュー開発を支える�
 - 「このお店に最近出した品」と同じ料理や、調理法と味の軸が同じよく似た料理は出さない。素材が違っても、同じ型（例:「○○の酒盗炙り」「○○のアラ出汁茶碗蒸し」「○○の部位串」）の繰り返しは避ける。
 
 ## そのほか
-- 「最近のトレンド」は発想の参考にする。特定の店のメニューを再現したり店名を出したりせず、傾向を踏まえたオリジナルの提案にする。参考にしたトレンドは trend_ids に id を入れる。trend_basis は職人が読む文なので、id や「今週の方針」といった内部の言葉は書かない。
+- 「最近のトレンド」は発想の参考にする。特定の店のメニューを再現したり店名を出したりせず、傾向を踏まえたオリジナルの提案にする。【海外】のトレンドは、そのまま真似ずに発想や技法だけを取り出し、日本で手に入る素材と寿司店の仕事に置き換える（trend_basis では「海外の鮨店で広がる〜を、〜に置き換えた」のように書く）。参考にしたトレンドは trend_ids に id を入れる。trend_basis は職人が読む文なので、id や「今週の方針」といった内部の言葉は書かない。
 - 「職人の評価」は他店での反応。好評の方向は活かし、不評の方向は避ける。
 - 「検証済みの傾向」の勝ちパターンは積極的に使い、負けパターンは避ける。
 - 食品衛生上の注意（寄生虫・加熱の要否など）が関わる素材は shokunin_points に必ず書く。アニサキスなどの寄生虫は、目視確認だけでは防げないので「-20℃で24時間以上の冷凍」または「十分な加熱」を対策として書き、目視は補助として扱う。`;
@@ -81,7 +81,10 @@ const SYSTEM = `あなたは日本の寿司店のメニュー開発を支える�
 function buildUserPrompt(input: ProposeInput): string {
   const trends = input.trends.length
     ? input.trends
-        .map((t) => `- [id:${t.id}] ${t.title}：${t.summary}（素材: ${JSON.parse(t.ingredients).join("、")} / 技法: ${JSON.parse(t.techniques).join("、")}）`)
+        .map((t) => {
+          const where = t.origin === "overseas" ? `海外・${t.region ?? "地域不明"}` : t.region ? `国内・${t.region}` : "国内";
+          return `- [id:${t.id}]【${where}】${t.title}：${t.summary}（素材: ${JSON.parse(t.ingredients).join("、")} / 技法: ${JSON.parse(t.techniques).join("、")}）`;
+        })
         .join("\n")
     : "（まだありません）";
   const ratingLabel: Record<string, string> = { adopted: "採用", tried: "試作した", not_fit: "合わなかった" };

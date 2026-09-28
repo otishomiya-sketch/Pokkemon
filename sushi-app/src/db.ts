@@ -24,6 +24,7 @@ export function openDb(): Database {
   addColumn("shops", "price_per_guest", "INTEGER");
   addColumn("shops", "price_band", "TEXT");
   addColumn("trends", "price_band", "TEXT");
+  addColumn("trends", "origin", "TEXT");
   db.exec(readFileSync(resolve(appRoot, "db/schema.sql"), "utf8"));
   return db;
 }
@@ -76,6 +77,8 @@ export interface TrendRow {
   ingredients: string;
   techniques: string;
   season: string | null;
+  region: string | null;
+  origin: string | null;
 }
 
 export function findShop(db: Database, code: string): Shop | null {
@@ -98,7 +101,7 @@ export function selectTrends(
     !priceBand ? 0 : band === priceBand ? 2 : band === null || near.has(band) ? 1 : 0;
   const rows = db
     .query<TrendRow & { price_band: string | null }, [string]>(
-      `SELECT id, category, title, summary, ingredients, techniques, season, price_band
+      `SELECT id, category, title, summary, ingredients, techniques, season, region, origin, price_band
          FROM trends
         WHERE status = 'active' AND category IN (?, 'both')
         ORDER BY observed_at DESC, id DESC

@@ -10,6 +10,8 @@ import { BAND_IDS, PRICE_BANDS, bandFor } from "./shop-profile";
 const DEFAULT_SCHEDULE = [{ at: "T+3d" }, { at: "T+7d", final: true }];
 const MAX_HYPOTHESES_PER_RUN = 6;
 const REAL_TRENDS_TO_RETIRE_SAMPLES = 20;
+/** リサーチのうち海外の鮨店から集める割合の目安 */
+const OVERSEAS_SHARE = 0.35;
 
 /** JSON の入力を受け取るコマンド */
 export const JSON_COMMANDS = new Set([
@@ -133,7 +135,7 @@ export function runLoop(db: Database, cmd: string | undefined, args: string[], i
       return {
         data: db
           .query(
-            `SELECT id, category, title, summary, ingredients, techniques, season, price_band, source_type, observed_at
+            `SELECT id, category, title, summary, ingredients, techniques, season, region, origin, price_band, source_type, observed_at
                FROM trends WHERE status='active' AND observed_at >= date('now','localtime', ?)
               ORDER BY observed_at DESC, id DESC`,
           )
@@ -180,9 +182,27 @@ export function runLoop(db: Database, cmd: string | undefined, args: string[], i
           target_count: shops.length ? Math.round(((total - general) * inBand.length) / shops.length) : 0,
         };
       });
+      const byOrigin = db
+        .query<{ origin: string; c: number }, []>(
+          `SELECT COALESCE(origin, 'unknown') AS origin, COUNT(*) AS c FROM trends
+            WHERE status = 'active' AND source_type <> 'sample' AND observed_at >= date('now','localtime','-30 days') GROUP BY 1`,
+        )
+        .all();
+      const overseasRegions = db
+        .query<{ region: string; c: number }, []>(
+          `SELECT region, COUNT(*) AS c FROM trends
+            WHERE status = 'active' AND origin = 'overseas' AND observed_at >= date('now','localtime','-60 days') GROUP BY region ORDER BY c DESC`,
+        )
+        .all();
       return {
         data: {
           total,
+          overseas: {
+            target_count: Math.round(total * OVERSEAS_SHARE),
+            note: "価格帯ごとの件数（bands と general）のうち、この件数ぶんを海外の鮨店から集める（各価格帯に散らす）",
+            last_30_days_by_origin: Object.fromEntries(byOrigin.map((r) => [r.origin, r.c])),
+            regions_last_60_days: overseasRegions,
+          },
           general: { price_band: "all", target_count: general, trends_last_30_days: recentBy.all ?? 0 },
           bands: targets,
           unregistered_shops: count0(db, "SELECT COUNT(*) AS c FROM shops WHERE price_band IS NULL"),
@@ -194,8 +214,8 @@ export function runLoop(db: Database, cmd: string | undefined, args: string[], i
       const items = input;
       if (!Array.isArray(items)) die("配列 [...] で渡してください");
       const insert = db.query(
-        `INSERT INTO trends (category, title, summary, ingredients, techniques, season, region, price_band, source_type, source_url, collected_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'noctowl-researcher')`,
+        `INSERT INTO trends (category, title, summary, ingredients, techniques, season, region, price_band, origin, source_type, source_url, collected_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'noctowl-researcher')`,
       );
       // 1 つの記事から複数の傾向を取れるよう、重複は見出しで判定する
       const exists = db.query<{ id: number }, [string]>("SELECT id FROM trends WHERE title = ? LIMIT 1");
@@ -208,6 +228,8 @@ export function runLoop(db: Database, cmd: string | undefined, args: string[], i
         const why =
           !isCategory(t.category) ? "category が不正" :
           band !== null && !BAND_IDS.includes(band) ? `price_band は ${BAND_IDS.join(" / ")} / all のどれか` :
+          t.origin !== "japan" && t.origin !== "overseas" ? "origin は japan か overseas" :
+          !str(t.region, 40) ? "region（都市・地域）が空" :
           !title || !summary ? "title / summary が空" :
           t.source_type !== "sns" && t.source_type !== "web" ? "source_type は sns か web" :
           !/^https?:\/\//.test(url) ? "source_url が URL ではない" :
@@ -218,7 +240,7 @@ export function runLoop(db: Database, cmd: string | undefined, args: string[], i
         }
         insert.run(
           t.category, title, summary, JSON.stringify(strList(t.ingredients)), JSON.stringify(strList(t.techniques)),
-          str(t.season, 20) || null, str(t.region, 40) || null, band, t.source_type, url,
+          str(t.season, 20) || null, str(t.region, 40) || null, band, t.origin, t.source_type, url,
         );
         result.added++;
       }
