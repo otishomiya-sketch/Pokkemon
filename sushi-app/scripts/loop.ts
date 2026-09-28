@@ -20,6 +20,8 @@
  * 管理用（人が使う）:
  *   bun sushi-app/scripts/loop.ts add-shop --json '{"name":"店名"}'   店舗を追加（店舗コードは自動で作る）
  *   bun sushi-app/scripts/loop.ts list-shops                          店舗一覧
+ *   bun sushi-app/scripts/loop.ts shop-stats                          店舗ごとの利用状況（提案・評価・画像の数）
+ *   bun sushi-app/scripts/loop.ts recent-proposals [件数=30]          直近の提案（偏りの確認用）
  *   bun sushi-app/scripts/loop.ts set-shop-profile --json '{"code":"…","concept":"…","features":[…],"price_per_guest":12000}'
  *   bun sushi-app/scripts/loop.ts migrate-to-remote                   手元の学習データをクラウドへ移す（1 回だけ）
  *

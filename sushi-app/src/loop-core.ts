@@ -439,6 +439,41 @@ export function runLoop(db: Database, cmd: string | undefined, args: string[], i
       return { data: { code, price_band: bandFor(price) } };
     }
 
+    case "recent-proposals": {
+      // 直近の提案（管理用・読み取りのみ）。提案の偏りを調べるために使う
+      const limit = Math.min(100, Number(args[0] ?? 30));
+      const rows = db
+        .query<{ id: number; shop: string; category: string; ingredients: string; notes: string; result: string; trend_ids: string; experiment_ids: string; mode: string; created_at: string }, [number]>(
+          `SELECT p.id, s.name AS shop, p.category, p.ingredients, p.notes, p.result, p.trend_ids, p.experiment_ids, p.mode, p.created_at
+             FROM proposals p JOIN shops s ON s.id = p.shop_id ORDER BY p.id DESC LIMIT ?`,
+        )
+        .all(limit);
+      return {
+        data: rows.map((r) => ({
+          id: r.id, shop: r.shop, category: r.category, mode: r.mode, created_at: r.created_at,
+          ingredients: JSON.parse(r.ingredients), notes: r.notes,
+          dishes: (JSON.parse(r.result).proposals ?? []).map((d: { name: string; concept: string }) => ({ name: d.name, concept: d.concept })),
+          trend_ids: JSON.parse(r.trend_ids), experiment_ids: JSON.parse(r.experiment_ids),
+        })),
+      };
+    }
+
+    case "shop-stats":
+      // 店舗ごとの利用状況（管理用）
+      return {
+        data: db
+          .query(
+            `SELECT s.code, s.name, s.price_band,
+                    (SELECT COUNT(*) FROM proposals p WHERE p.shop_id = s.id) AS proposals,
+                    (SELECT COUNT(*) FROM proposals p WHERE p.shop_id = s.id AND p.created_at >= datetime('now','localtime','-7 days')) AS proposals_7d,
+                    (SELECT COUNT(*) FROM feedback f JOIN proposals p ON p.id = f.proposal_id WHERE p.shop_id = s.id) AS ratings,
+                    (SELECT COUNT(*) FROM dish_images i JOIN proposals p ON p.id = i.proposal_id WHERE p.shop_id = s.id) AS images,
+                    (SELECT MAX(p.created_at) FROM proposals p WHERE p.shop_id = s.id) AS last_used
+               FROM shops s ORDER BY s.id`,
+          )
+          .all(),
+      };
+
     case "list-shops":
       return { data: db.query("SELECT id, code, name, concept, features, price_per_guest, price_band, created_at FROM shops ORDER BY id").all() };
 
