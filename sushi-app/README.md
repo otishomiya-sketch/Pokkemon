@@ -16,6 +16,21 @@ bun server.ts                # → http://localhost:5800/  店舗コード DEMO 
 - スマホ実機で試す: `HOST=0.0.0.0 bun server.ts` → 同じ Wi-Fi のスマホから `http://<MacのIP>:5800/`
 - 店舗を追加: `bun scripts/seed.ts --shop CODE 店名`
 
+## 店舗情報と価格帯
+
+お店は最初に開いたとき、**コンセプト・特徴・客単価** を登録する（あとから「店舗」タブで変更できる）。客単価から価格帯が決まる（`src/shop-profile.ts`）。
+
+| 価格帯 | 客単価 |
+|---|---|
+| value | 〜3,000円 |
+| casual | 3,000〜8,000円 |
+| standard | 8,000〜15,000円 |
+| premium | 15,000〜30,000円 |
+| luxury | 30,000円〜 |
+
+- ヨルノズクは `loop.ts research-targets` で、登録店舗の価格帯ごとに調べる件数を決め、各トレンドに `price_band` を付けて登録する
+- 提案では、お店の情報を AI に渡し、同じ価格帯（次に隣の価格帯・価格帯を問わないもの）のトレンドと評価を優先する
+
 ## クラウドで公開する（Railway）
 
 アプリと DB はクラウド、毎晩のエージェントは Mac、という分担にする。エージェントは `SUSHI_REMOTE_URL` と `SUSHI_LOOP_TOKEN` があれば、クラウドの `/api/loop` を通して DB を読み書きする。

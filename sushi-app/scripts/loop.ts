@@ -4,6 +4,7 @@
  * 書き込みの入力は JSON。`--json '<JSON>'` で直接渡す（JSON の中に ' を使わない）か、JSON ファイルのパスを渡す。
  *
  *   bun sushi-app/scripts/loop.ts context                         全体の状況（JSON）
+ *   bun sushi-app/scripts/loop.ts research-targets [件数=12]       価格帯ごとに何件集めるかの目安（ヨルノズク）
  *   bun sushi-app/scripts/loop.ts trends [日数=30]                 最近のトレンド一覧
  *   bun sushi-app/scripts/loop.ts add-trends --json '<JSON>'      トレンド追加（ヨルノズク）
  *   bun sushi-app/scripts/loop.ts baseline <nigiri|dish> [日数=14] 評価率の基準値
@@ -19,6 +20,7 @@
  * 管理用（人が使う）:
  *   bun sushi-app/scripts/loop.ts add-shop --json '{"name":"店名"}'   店舗を追加（店舗コードは自動で作る）
  *   bun sushi-app/scripts/loop.ts list-shops                          店舗一覧
+ *   bun sushi-app/scripts/loop.ts set-shop-profile --json '{"code":"…","concept":"…","features":[…],"price_per_guest":12000}'
  *   bun sushi-app/scripts/loop.ts migrate-to-remote                   手元の学習データをクラウドへ移す（1 回だけ）
  *
  * 環境変数 SUSHI_REMOTE_URL と SUSHI_LOOP_TOKEN があれば、クラウドの DB に対して実行する（finish-reflection は常に手元）。

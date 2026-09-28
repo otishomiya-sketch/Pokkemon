@@ -6,6 +6,10 @@ CREATE TABLE IF NOT EXISTS shops (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   code        TEXT NOT NULL UNIQUE,          -- 店舗コード（ログインに使う）
   name        TEXT NOT NULL,
+  concept     TEXT,                          -- お店のコンセプト（店舗が最初に登録する）
+  features    TEXT NOT NULL DEFAULT '[]',    -- 特徴（JSON 配列）
+  price_per_guest INTEGER,                   -- 客単価（円）
+  price_band  TEXT,                          -- 客単価から決まる価格帯（src/shop-profile.ts）
   created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
@@ -19,6 +23,7 @@ CREATE TABLE IF NOT EXISTS trends (
   techniques   TEXT NOT NULL DEFAULT '[]',   -- JSON 配列
   season       TEXT,                         -- spring/summer/autumn/winter/all
   region       TEXT,
+  price_band   TEXT,                         -- どの価格帯のお店の流行か（NULL は価格帯を問わない）
   source_type  TEXT NOT NULL CHECK (source_type IN ('sns','web','sample')),
   source_url   TEXT,
   collected_by TEXT,                         -- 書き込んだエージェント

@@ -19,6 +19,8 @@ import { fileURLToPath } from "url";
 import { openDb, findShop, selectTrends, feedbackSignals, knowledgeFor, activeGuidelines, learnedPatterns, type Category } from "./src/db";
 import { proposeLive, proposeDemo, hasCredentials, ProposalError, MODEL } from "./src/propose";
 import { runLoop, LoopError } from "./src/loop-core";
+import { PRICE_BANDS, FEATURE_OPTIONS, parseProfileInput, ProfileError } from "./src/shop-profile";
+import type { Shop } from "./src/db";
 import { timingSafeEqual } from "crypto";
 import { existsSync } from "fs";
 import { basename } from "path";
@@ -55,6 +57,7 @@ async function handlePropose(req: Request) {
   const notes = typeof body?.notes === "string" ? body.notes.slice(0, 300) : "";
   if (ingredients.length === 0) return fail("素材を1つ以上入力してください");
   if (category !== "nigiri" && category !== "dish") return fail("握りか一品料理を選んでください");
+  if (!shop.price_band || !shop.concept) return fail("先にお店の情報（コンセプト・特徴・客単価）を登録してください", 409);
 
   const today = db
     .query<{ c: number }, [number]>("SELECT COUNT(*) AS c FROM proposals WHERE shop_id = ? AND date(created_at) = date('now','localtime')")
@@ -62,11 +65,12 @@ async function handlePropose(req: Request) {
   if (today >= DAILY_LIMIT) return fail(`今日の提案回数の上限（${DAILY_LIMIT} 回）に達しました。明日またお使いください`, 429);
 
   const input = {
+    shop: { concept: shop.concept, features: JSON.parse(shop.features), price_per_guest: shop.price_per_guest, price_band: shop.price_band },
     ingredients,
     category,
     notes,
-    trends: selectTrends(db, category, ingredients),
-    signals: feedbackSignals(db, category),
+    trends: selectTrends(db, category, ingredients, shop.price_band),
+    signals: feedbackSignals(db, category, shop.price_band),
     knowledge: knowledgeFor(db, ingredients),
     // 実行中の実験が複数あっても、1 回の提案に渡すのは 1 つだけ（どの方針が効いたかを分けて測るため）
     guidelines: pickOne(activeGuidelines(db, category)),
@@ -123,6 +127,32 @@ async function handleFeedback(req: Request) {
        created_at = datetime('now','localtime')`,
   ).run(owned.id, Number(body.dish_index) || 0, body.rating!, (body.comment ?? "").slice(0, 500));
   return json({ ok: true });
+}
+
+function shopView(shop: Shop) {
+  return {
+    code: shop.code,
+    name: shop.name,
+    concept: shop.concept ?? "",
+    features: JSON.parse(shop.features) as string[],
+    price_per_guest: shop.price_per_guest,
+    price_band: shop.price_band,
+    profile_complete: Boolean(shop.concept && shop.price_band),
+  };
+}
+
+async function handleProfile(req: Request) {
+  const shop = shopFrom(req);
+  if (!shop) return fail("店舗コードが正しくありません", 401);
+  try {
+    const p = parseProfileInput(await req.json().catch(() => null));
+    db.query("UPDATE shops SET concept = ?, features = ?, price_per_guest = ?, price_band = ? WHERE id = ?")
+      .run(p.concept, JSON.stringify(p.features), p.price_per_guest, p.price_band, shop.id);
+    return json(shopView(findShop(db, shop.code)!));
+  } catch (error) {
+    if (error instanceof ProfileError) return fail(error.message);
+    throw error;
+  }
 }
 
 async function handleImage(req: Request, proposalId: number, dishIndex: number) {
@@ -229,8 +259,10 @@ Bun.serve({
     if (req.method === "GET" && url.pathname.startsWith("/images/")) return serveImage(url.pathname.slice("/images/".length));
     if (route === "GET /api/shop") {
       const shop = shopFrom(req);
-      return shop ? json({ code: shop.code, name: shop.name }) : fail("店舗コードが見つかりません", 404);
+      return shop ? json(shopView(shop)) : fail("店舗コードが見つかりません", 404);
     }
+    if (route === "PUT /api/shop/profile") return handleProfile(req);
+    if (route === "GET /api/profile-options") return json({ price_bands: PRICE_BANDS.map(({ id, label, examples, max }) => ({ id, label, examples, max: Number.isFinite(max) ? max : null })), features: FEATURE_OPTIONS });
     if (route === "POST /api/propose") return handlePropose(req);
     if (route === "POST /api/feedback") return handleFeedback(req);
     if (route === "GET /api/history") return handleHistory(req);

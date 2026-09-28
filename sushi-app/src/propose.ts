@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import * as z from "zod/v4";
 import type { Category, FeedbackSignal, Guideline, TrendRow } from "./db";
+import { bandLabel } from "./shop-profile";
 
 export const MODEL = "claude-opus-5";
 
@@ -21,7 +22,15 @@ const Dish = z.object({
 export const ProposalResult = z.object({ proposals: z.array(Dish) });
 export type ProposalResult = z.infer<typeof ProposalResult>;
 
+export interface ShopContext {
+  concept: string | null;
+  features: string[];
+  price_per_guest: number | null;
+  price_band: string | null;
+}
+
 export interface ProposeInput {
+  shop: ShopContext;
   ingredients: string[];
   category: Category;
   notes: string;
@@ -39,6 +48,7 @@ const SYSTEM = `あなたは日本の寿司店のメニュー開発を支える�
 
 - 提案は職人がそのまま仕込みに使えるレシピにする。分量・塩や酢の加減・温度・寝かせ時間など、手を動かすのに必要な情報を具体的に書く。
 - 入力された素材を主役にする。一般的な寿司店にある調味料や薬味は自由に足してよい。
+- 「お店の情報」のコンセプト・特徴・客単価に合わせる。とくに客単価に見合った素材の格・手間・原価・提供価格にする（客単価 3,000 円の店に 1 貫 2,000 円の品を出さない、客単価 30,000 円の店に手間の少ない大衆的な品ばかり出さない）。cost_note には、その客単価のお店での値付けの目安を書く。
 - 3品は方向性を変える（王道寄り・季節感・意外性など）。
 - 「最近のトレンド」は発想の参考にする。特定の店のメニューを再現したり店名を出したりせず、傾向を踏まえたオリジナルの提案にする。参考にしたトレンドは trend_ids に id を入れる。trend_basis は職人が読む文なので、id や「今週の方針」といった内部の言葉は書かず、どんな流行をどう活かしたかを書く。
 - 「職人の評価」は他店での反応。好評の方向は活かし、不評の方向は避ける。
@@ -66,7 +76,17 @@ function buildUserPrompt(input: ProposeInput): string {
     ? input.knowledge.map((k) => `- ${k.subject}：${k.body}`).join("\n")
     : "（まだありません）";
 
-  return `## 依頼
+  const shop = input.shop;
+  const shopInfo = [
+    `コンセプト：${shop.concept || "未登録"}`,
+    `特徴：${shop.features.length ? shop.features.join("、") : "未登録"}`,
+    `客単価：${shop.price_per_guest ? `${shop.price_per_guest.toLocaleString("ja-JP")}円（${bandLabel(shop.price_band)}）` : "未登録"}`,
+  ].join("\n");
+
+  return `## お店の情報
+${shopInfo}
+
+## 依頼
 種類：${CATEGORY_LABEL[input.category]}
 素材：${input.ingredients.join("、")}
 要望：${input.notes || "特になし"}

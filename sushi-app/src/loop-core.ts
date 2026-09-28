@@ -5,6 +5,7 @@
  */
 import type { Database } from "bun:sqlite";
 import { randomBytes } from "crypto";
+import { BAND_IDS, PRICE_BANDS, bandFor } from "./shop-profile";
 
 const DEFAULT_SCHEDULE = [{ at: "T+3d" }, { at: "T+7d", final: true }];
 const MAX_HYPOTHESES_PER_RUN = 6;
@@ -13,6 +14,7 @@ const REAL_TRENDS_TO_RETIRE_SAMPLES = 20;
 /** JSON の入力を受け取るコマンド */
 export const JSON_COMMANDS = new Set([
   "add-trends", "record-followup", "add-hypotheses", "start-experiments", "add-notes", "add-shop", "import-snapshot",
+  "set-shop-profile",
 ]);
 
 export class LoopError extends Error {}
@@ -35,6 +37,8 @@ export function newShopCode(length = 10): string {
   const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   return [...randomBytes(length)].map((b) => alphabet[b % alphabet.length]).join("");
 }
+
+const count0 = (db: Database, sql: string) => db.query<{ c: number }, []>(sql).get()!.c;
 
 export function runLoop(db: Database, cmd: string | undefined, args: string[], input?: any): LoopResult {
   const daysAgo = (days: number): string =>
@@ -95,6 +99,9 @@ export function runLoop(db: Database, cmd: string | undefined, args: string[], i
         data: {
           now: daysAgo(0),
           shops: count("SELECT COUNT(*) AS c FROM shops"),
+          shops_by_band: db
+            .query("SELECT COALESCE(price_band, 'unregistered') AS price_band, COUNT(*) AS c FROM shops GROUP BY 1 ORDER BY 2 DESC")
+            .all(),
           trends: db
             .query("SELECT source_type, COUNT(*) AS c FROM trends WHERE status='active' GROUP BY source_type")
             .all(),
@@ -126,7 +133,7 @@ export function runLoop(db: Database, cmd: string | undefined, args: string[], i
       return {
         data: db
           .query(
-            `SELECT id, category, title, summary, ingredients, techniques, season, source_type, observed_at
+            `SELECT id, category, title, summary, ingredients, techniques, season, price_band, source_type, observed_at
                FROM trends WHERE status='active' AND observed_at >= date('now','localtime', ?)
               ORDER BY observed_at DESC, id DESC`,
           )
@@ -134,12 +141,61 @@ export function runLoop(db: Database, cmd: string | undefined, args: string[], i
       };
     }
 
+    case "research-targets": {
+      // 登録店舗の価格帯・コンセプト・特徴をまとめ、今回のリサーチで価格帯ごとに何件集めるかの目安を返す（店名は出さない）
+      const total = Number(args[0] ?? 12);
+      const shops = db
+        .query<{ price_band: string | null; price_per_guest: number | null; concept: string | null; features: string }, []>(
+          "SELECT price_band, price_per_guest, concept, features FROM shops WHERE price_band IS NOT NULL",
+        )
+        .all();
+      const recent = db
+        .query<{ band: string; c: number }, []>(
+          `SELECT COALESCE(price_band, 'all') AS band, COUNT(*) AS c FROM trends
+            WHERE status = 'active' AND source_type <> 'sample' AND observed_at >= date('now','localtime','-30 days') GROUP BY 1`,
+        )
+        .all();
+      const recentBy = Object.fromEntries(recent.map((r) => [r.band, r.c]));
+      // 価格帯を問わない一般的な流行に 2 割、残りを店舗数に比例して配分（店舗が無ければ全部を一般に）
+      const general = shops.length ? Math.max(2, Math.round(total * 0.2)) : total;
+      const targets = PRICE_BANDS.map((b) => {
+        const inBand = shops.filter((x) => x.price_band === b.id);
+        const features = inBand.flatMap((x) => JSON.parse(x.features) as string[]);
+        const topFeatures = [...new Set(features)]
+          .map((f) => [f, features.filter((y) => y === f).length] as const)
+          .sort((a, z) => z[1] - a[1])
+          .slice(0, 8)
+          .map(([f]) => f);
+        return {
+          price_band: b.id,
+          label: b.label,
+          examples: b.examples,
+          shops: inBand.length,
+          price_per_guest_range: inBand.length
+            ? [Math.min(...inBand.map((x) => x.price_per_guest ?? 0)), Math.max(...inBand.map((x) => x.price_per_guest ?? 0))]
+            : null,
+          concepts: inBand.map((x) => x.concept).filter(Boolean).slice(0, 8),
+          features: topFeatures,
+          trends_last_30_days: recentBy[b.id] ?? 0,
+          target_count: shops.length ? Math.round(((total - general) * inBand.length) / shops.length) : 0,
+        };
+      });
+      return {
+        data: {
+          total,
+          general: { price_band: "all", target_count: general, trends_last_30_days: recentBy.all ?? 0 },
+          bands: targets,
+          unregistered_shops: count0(db, "SELECT COUNT(*) AS c FROM shops WHERE price_band IS NULL"),
+        },
+      };
+    }
+
     case "add-trends": {
       const items = input;
       if (!Array.isArray(items)) die("配列 [...] で渡してください");
       const insert = db.query(
-        `INSERT INTO trends (category, title, summary, ingredients, techniques, season, region, source_type, source_url, collected_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'noctowl-researcher')`,
+        `INSERT INTO trends (category, title, summary, ingredients, techniques, season, region, price_band, source_type, source_url, collected_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'noctowl-researcher')`,
       );
       // 1 つの記事から複数の傾向を取れるよう、重複は見出しで判定する
       const exists = db.query<{ id: number }, [string]>("SELECT id FROM trends WHERE title = ? LIMIT 1");
@@ -148,8 +204,10 @@ export function runLoop(db: Database, cmd: string | undefined, args: string[], i
         const title = str(t.title, 60);
         const summary = str(t.summary, 300);
         const url = str(t.source_url, 500);
+        const band = t.price_band === undefined || t.price_band === null || t.price_band === "all" ? null : t.price_band;
         const why =
           !isCategory(t.category) ? "category が不正" :
+          band !== null && !BAND_IDS.includes(band) ? `price_band は ${BAND_IDS.join(" / ")} / all のどれか` :
           !title || !summary ? "title / summary が空" :
           t.source_type !== "sns" && t.source_type !== "web" ? "source_type は sns か web" :
           !/^https?:\/\//.test(url) ? "source_url が URL ではない" :
@@ -160,7 +218,7 @@ export function runLoop(db: Database, cmd: string | undefined, args: string[], i
         }
         insert.run(
           t.category, title, summary, JSON.stringify(strList(t.ingredients)), JSON.stringify(strList(t.techniques)),
-          str(t.season, 20) || null, str(t.region, 40) || null, t.source_type, url,
+          str(t.season, 20) || null, str(t.region, 40) || null, band, t.source_type, url,
         );
         result.added++;
       }
@@ -360,12 +418,29 @@ export function runLoop(db: Database, cmd: string | undefined, args: string[], i
       if (!name) die("店名（name）を指定してください");
       const code = str(input?.code, 20).toUpperCase() || newShopCode();
       if (code.length < 8) die("店舗コードは 8 文字以上にしてください（推測されないように）");
-      db.query("INSERT INTO shops (code, name) VALUES (?, ?)").run(code, name);
-      return { data: { code, name } };
+      const price = Number(input?.price_per_guest);
+      const hasPrice = Number.isFinite(price) && price > 0;
+      db.query("INSERT INTO shops (code, name, concept, features, price_per_guest, price_band) VALUES (?, ?, ?, ?, ?, ?)").run(
+        code, name, str(input?.concept, 200) || null, JSON.stringify(strList(input?.features)),
+        hasPrice ? Math.round(price) : null, hasPrice ? bandFor(price) : null,
+      );
+      return { data: { code, name, price_band: hasPrice ? bandFor(price) : null } };
+    }
+
+    case "set-shop-profile": {
+      const code = str(input?.code, 20);
+      const price = Number(input?.price_per_guest);
+      if (!code) die("code を指定してください");
+      if (!Number.isFinite(price) || price <= 0) die("price_per_guest（客単価・円）を指定してください");
+      const changes = db
+        .query("UPDATE shops SET concept = ?, features = ?, price_per_guest = ?, price_band = ? WHERE code = ? COLLATE NOCASE")
+        .run(str(input?.concept, 200) || null, JSON.stringify(strList(input?.features)), Math.round(price), bandFor(price), code).changes;
+      if (!changes) die(`店舗 ${code} がありません`);
+      return { data: { code, price_band: bandFor(price) } };
     }
 
     case "list-shops":
-      return { data: db.query("SELECT id, code, name, created_at FROM shops ORDER BY id").all() };
+      return { data: db.query("SELECT id, code, name, concept, features, price_per_guest, price_band, created_at FROM shops ORDER BY id").all() };
 
     case "export-snapshot":
       return {

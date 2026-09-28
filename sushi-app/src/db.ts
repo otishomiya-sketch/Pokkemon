@@ -2,6 +2,7 @@ import { Database } from "bun:sqlite";
 import { mkdirSync, readFileSync } from "fs";
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
+import { neighborBands, type PriceBand } from "./shop-profile";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(here, "..");
@@ -13,10 +14,16 @@ export function openDb(): Database {
   const db = new Database(DB_PATH, { create: true });
   db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
   // 既存 DB に後から足した列を補う（schema.sql の CREATE TABLE IF NOT EXISTS は既存表を変えないため）
-  const proposalCols = db.query<{ name: string }, []>("PRAGMA table_info(proposals)").all().map((c) => c.name);
-  if (proposalCols.length > 0 && !proposalCols.includes("experiment_ids")) {
-    db.exec("ALTER TABLE proposals ADD COLUMN experiment_ids TEXT NOT NULL DEFAULT '[]'");
-  }
+  const addColumn = (table: string, column: string, definition: string) => {
+    const cols = db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+    if (cols.length > 0 && !cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  };
+  addColumn("proposals", "experiment_ids", "TEXT NOT NULL DEFAULT '[]'");
+  addColumn("shops", "concept", "TEXT");
+  addColumn("shops", "features", "TEXT NOT NULL DEFAULT '[]'");
+  addColumn("shops", "price_per_guest", "INTEGER");
+  addColumn("shops", "price_band", "TEXT");
+  addColumn("trends", "price_band", "TEXT");
   db.exec(readFileSync(resolve(appRoot, "db/schema.sql"), "utf8"));
   return db;
 }
@@ -55,6 +62,10 @@ export interface Shop {
   id: number;
   code: string;
   name: string;
+  concept: string | null;
+  features: string;
+  price_per_guest: number | null;
+  price_band: string | null;
 }
 
 export interface TrendRow {
@@ -69,23 +80,34 @@ export interface TrendRow {
 
 export function findShop(db: Database, code: string): Shop | null {
   return db
-    .query<Shop, [string]>("SELECT id, code, name FROM shops WHERE code = ? COLLATE NOCASE")
+    .query<Shop, [string]>(
+      "SELECT id, code, name, concept, features, price_per_guest, price_band FROM shops WHERE code = ? COLLATE NOCASE",
+    )
     .get(code.trim());
 }
 
-/** 入力素材に関係するトレンドを優先し、足りない分は新しいもので埋める */
-export function selectTrends(db: Database, category: Category, ingredients: string[], limit = 12): TrendRow[] {
+/**
+ * 入力素材に関係するトレンドを優先し、足りない分は新しいもので埋める。
+ * 店舗の価格帯が分かっていれば、同じ価格帯 → 隣の価格帯・価格帯を問わないもの → それ以外、の順に優先する。
+ */
+export function selectTrends(
+  db: Database, category: Category, ingredients: string[], priceBand: string | null = null, limit = 12,
+): TrendRow[] {
+  const near = priceBand ? new Set(neighborBands(priceBand as PriceBand)) : new Set<string>();
+  const bandScore = (band: string | null) =>
+    !priceBand ? 0 : band === priceBand ? 2 : band === null || near.has(band) ? 1 : 0;
   const rows = db
-    .query<TrendRow, [string]>(
-      `SELECT id, category, title, summary, ingredients, techniques, season
+    .query<TrendRow & { price_band: string | null }, [string]>(
+      `SELECT id, category, title, summary, ingredients, techniques, season, price_band
          FROM trends
         WHERE status = 'active' AND category IN (?, 'both')
         ORDER BY observed_at DESC, id DESC
         LIMIT 200`,
     )
     .all(category);
-  const score = (t: TrendRow) =>
-    ingredients.filter((i) => t.ingredients.includes(i) || t.title.includes(i) || t.summary.includes(i)).length;
+  const score = (t: TrendRow & { price_band: string | null }) =>
+    ingredients.filter((i) => t.ingredients.includes(i) || t.title.includes(i) || t.summary.includes(i)).length * 3 +
+    bandScore(t.price_band);
   return rows
     .map((t, order) => ({ t, s: score(t), order }))
     .sort((a, b) => b.s - a.s || a.order - b.order)
@@ -99,17 +121,20 @@ export interface FeedbackSignal {
   rating: string;
 }
 
-/** 全店舗の評価から、好評・不評だった提案の傾向を集める（店舗名は出さない） */
-export function feedbackSignals(db: Database, category: Category, limit = 20): FeedbackSignal[] {
+/**
+ * 評価から、好評・不評だった提案の傾向を集める（店舗名は出さない）。
+ * 価格帯が分かっていれば同じ価格帯のお店の評価を先に使い、足りなければ全店分で補う。
+ */
+export function feedbackSignals(db: Database, category: Category, priceBand: string | null = null, limit = 20): FeedbackSignal[] {
   const rows = db
-    .query<{ result: string; dish_index: number; rating: string }, [string, number]>(
+    .query<{ result: string; dish_index: number; rating: string }, [string, string, number]>(
       `SELECT p.result, f.dish_index, f.rating
-         FROM feedback f JOIN proposals p ON p.id = f.proposal_id
+         FROM feedback f JOIN proposals p ON p.id = f.proposal_id JOIN shops s ON s.id = p.shop_id
         WHERE p.category = ? AND p.mode = 'live'
-        ORDER BY f.created_at DESC
+        ORDER BY (s.price_band IS ?) DESC, f.created_at DESC
         LIMIT ?`,
     )
-    .all(category, limit);
+    .all(category, priceBand ?? "", limit);
   const signals: FeedbackSignal[] = [];
   for (const r of rows) {
     const dish = JSON.parse(r.result).proposals?.[r.dish_index];
