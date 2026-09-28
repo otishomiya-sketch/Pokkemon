@@ -1,0 +1,555 @@
+{
+  "name": "Japanese Food Photorealism Guard",
+  "version": "1.0",
+  "purpose": "テキストから生成する料理画像について、現実の食材構造・調理状態・水分・衣・光学特性を守り、AI特有の不自然で不味そうな表現を防ぐ。",
+  "core_principle": {
+    "priority_order": [
+      "食材として物理的に正しいこと",
+      "調理法として正しいこと",
+      "形状と質感が実物らしいこと",
+      "食材同士が融合・変形していないこと",
+      "適切な水分感・油分感を持つこと",
+      "自然な不均一性を持つこと",
+      "最後に写真として美味しそうに見せること"
+    ],
+    "important_rule": "appetizing, delicious, beautiful food などの抽象語だけに依存せず、各食材の正常な物理状態を具体的に記述する。",
+    "realism_definition": "広告用に過剰加工されたCGではなく、腕の良い料理写真家が、実際に調理された料理を最も美味しく見える瞬間に撮影した写真"
+  },
+
+  "global_food_rules": {
+    "geometry": {
+      "require": [
+        "それぞれの食材は独立した物体として認識できる",
+        "食材同士の境界は接触部分以外では明確",
+        "同じ食材でも大きさ・向き・表面形状に自然な個体差がある",
+        "重力に従った自然な積み重なり",
+        "器との接触面が物理的に自然"
+      ],
+      "avoid": [
+        "食材同士が溶けて一体化する",
+        "隣の料理の模様や色が別の食材へ侵入する",
+        "同じ形の食材がコピー&ペーストのように反復する",
+        "宙に浮く",
+        "不自然にめり込む",
+        "皿を貫通する",
+        "途中で形状が別の食材へ変化する"
+      ]
+    },
+
+    "surface_physics": {
+      "require": [
+        "乾燥面・湿潤面・油面を区別する",
+        "ハイライトは水分や油分のある部分に限定する",
+        "粗い表面ではハイライトを細かく分散させる",
+        "マットな食材をプラスチックのように光らせない"
+      ],
+      "avoid": [
+        "料理全体をニスで塗ったような均一な光沢",
+        "CGプラスチックのような強い鏡面反射",
+        "食材内部まで透明",
+        "水滴や油滴を過剰に付加する"
+      ]
+    },
+
+    "color": {
+      "require": [
+        "調理法に由来する自然な色ムラ",
+        "白飛びしない白",
+        "黒潰れしない焦げ色",
+        "暖色寄りでも実際の食品として成立する色"
+      ],
+      "avoid": [
+        "ネオンオレンジ",
+        "過度な黄色",
+        "過度な赤",
+        "蛍光色",
+        "HDR過剰",
+        "極端な彩度",
+        "食材全体が同じRGB値に見える均一色"
+      ]
+    },
+
+    "natural_variation": {
+      "rule": "real food is organized but imperfect",
+      "include": [
+        "微妙な形の違い",
+        "焼き色の濃淡",
+        "衣の厚さの違い",
+        "粒の向きの違い",
+        "わずかな欠け",
+        "自然な影"
+      ],
+      "exclude": [
+        "完全な球体",
+        "完全な左右対称",
+        "同一形状の大量反復",
+        "機械的に等間隔な配置"
+      ]
+    }
+  },
+
+  "white_rice": {
+    "target": "日本の短粒種・中短粒種の炊きたて白米",
+
+    "grain_structure": {
+      "require": [
+        "米粒一粒一粒の存在が近距離では確認できる",
+        "炊飯によって適度に膨らんだ短粒～中短粒の形",
+        "粒の長軸方向はランダム",
+        "粒同士は軽く接着している",
+        "接着していても完全には融合していない",
+        "表面は柔らかく丸みを帯びる",
+        "一部の粒は他の粒の陰に自然に隠れる"
+      ],
+
+      "shape": {
+        "preferred": "ふっくらした短い楕円形",
+        "avoid": [
+          "生米のように細く硬い粒",
+          "タイ米のような極端な長粒",
+          "真珠のような完全な球",
+          "イクラのような丸粒",
+          "虫の幼虫のような太い形",
+          "麺状",
+          "粥のように完全融合した塊"
+        ]
+      }
+    },
+
+    "surface": {
+      "color": "自然な温かみのある白。純粋な#FFFFFFではなく、ごくわずかにアイボリー寄り。",
+      "gloss": "非常に細かな半透明～乳白色の柔らかいハイライト。濡れたガラスのような強い光沢は禁止。",
+      "moisture": "炊きたての適度なしっとり感。水滴が見えるほど濡らさない。",
+      "translucency": "粒の表層にごく軽い半透明感は許容するが、ゼリー状にはしない。"
+    },
+
+    "clumping": {
+      "correct": "粒が互いに軽く付着しながら、粒形は大部分保持されている",
+      "incorrect": [
+        "完全にバラバラの乾燥米",
+        "粘土のような一枚の塊",
+        "マッシュポテト状",
+        "表面だけ米粒模様を貼った球体"
+      ]
+    },
+
+    "serving": {
+      "bowl": "茶碗の曲面に沿って自然に盛られる",
+      "top_shape": "ゆるやかな山形。不自然な半球やアイスクリームスクープ形状は禁止。",
+      "density": "内部には自然な圧縮があり、外周は少しほぐれている"
+    },
+
+    "critical_negative_prompt": [
+      "uncooked rice",
+      "dry rice grains",
+      "long grain rice unless explicitly requested",
+      "perfect spheres",
+      "pearl-like grains",
+      "plastic rice",
+      "gelatinous rice",
+      "mushy porridge",
+      "rice paste",
+      "overexposed pure white mass",
+      "identical repeated grains",
+      "wet glossy slime",
+      "translucent noodles",
+      "CGI rice texture",
+      "rice texture painted onto a solid lump"
+    ]
+  },
+
+  "karaage": {
+    "target": "日本式の鶏もも肉の唐揚げ。醤油・生姜・にんにく系の下味、片栗粉主体の衣を想定。",
+
+    "piece_geometry": {
+      "require": [
+        "一口大",
+        "完全な球ではない",
+        "鶏もも肉由来の不規則な立体形状",
+        "各ピースの形状は異なる",
+        "丸みと角の両方を持つ",
+        "衣の凹凸は肉の形に沿って発生する"
+      ],
+      "avoid": [
+        "同一サイズの球",
+        "ミートボール形状",
+        "岩石形状",
+        "立方体",
+        "ナゲットのような成形肉",
+        "パン粉フライのような長いトゲ"
+      ]
+    },
+
+    "coating": {
+      "type": "片栗粉主体の薄～中程度の衣",
+      "correct_texture": [
+        "細かなひび",
+        "薄いフレーク",
+        "小さな凹凸",
+        "所々に片栗粉由来の淡い色",
+        "醤油由来の褐色とのまだらなグラデーション",
+        "小さな気泡跡",
+        "局所的に衣が厚い部分と薄い部分"
+      ],
+      "avoid": [
+        "均一なパン粉",
+        "コーンフレーク状",
+        "巨大な針状突起",
+        "全面同じ厚さ",
+        "岩石のような硬い表面",
+        "陶器の釉薬のようなツヤ"
+      ]
+    },
+
+    "color": {
+      "base": "黄褐色～きつね色～明るい茶褐色",
+      "variation": "突出部はやや濃く、谷部分はやや淡い。片栗粉主体なら部分的な淡いベージュ～薄い黄金色を残してよい。",
+      "avoid": [
+        "全面均一なオレンジ",
+        "全面濃茶",
+        "黒焦げ",
+        "黄色一色",
+        "赤茶色一色"
+      ]
+    },
+
+    "oil_behavior": {
+      "correct": [
+        "揚げたてらしい微細な油の反射",
+        "凹凸の一部だけに小さなハイライト",
+        "表面の大部分は比較的マット"
+      ],
+      "avoid": [
+        "全面が油膜で濡れている",
+        "ソースを塗ったような光沢",
+        "大きな油滴が大量に付着",
+        "揚げ油の中に入っていないのに泡が付着"
+      ]
+    },
+
+    "interior_if_cut": {
+      "meat": "完全に加熱された鶏肉。繊維方向が確認でき、柔らかくジューシー。",
+      "color": "白～淡いベージュ。部位によりごく淡い褐色。",
+      "moisture": "断面に軽い水分感を持つが、液体が大量に流れ出さない。",
+      "avoid": [
+        "生肉の透明なピンク",
+        "ハムのような均一ピンク",
+        "スポンジ",
+        "チーズ状",
+        "ペースト状",
+        "空洞"
+      ]
+    },
+
+    "critical_negative_prompt": [
+      "perfectly round fried chicken",
+      "orange rocks",
+      "uniform bread crumbs",
+      "thick breaded schnitzel crust",
+      "plastic coating",
+      "glazed surface",
+      "wet oily chicken",
+      "burnt black crust",
+      "identical repeated pieces",
+      "meatball shape",
+      "chicken nuggets",
+      "raw pink chicken interior",
+      "hollow fried shell",
+      "oversized crunchy spikes",
+      "CGI fried chicken"
+    ]
+  },
+
+  "other_high_risk_foods": {
+    "fried_food_general": {
+      "examples": [
+        "とんかつ",
+        "天ぷら",
+        "フライ",
+        "コロッケ"
+      ],
+      "rules": [
+        "衣の種類を必ず指定する",
+        "パン粉・小麦粉・片栗粉・天ぷら衣を混同しない",
+        "衣の厚さを料理に合わせる",
+        "油の光沢は局所的にする",
+        "揚げ色を均一にしすぎない",
+        "焦げ色と影を混同しない"
+      ]
+    },
+
+    "meat": {
+      "rules": [
+        "筋繊維の方向を守る",
+        "脂身と赤身を物理的につなげる",
+        "切断面だけに内部組織を見せる",
+        "焼き目は熱源に接触した面に発生させる",
+        "肉汁を透明な水のように大量放出させない",
+        "照りと生肉の濡れ感を区別する"
+      ],
+      "avoid": [
+        "ゴム状",
+        "プラスチック状",
+        "内部が均質",
+        "不自然なピンク",
+        "筋繊維が渦巻く"
+      ]
+    },
+
+    "fish": {
+      "rules": [
+        "魚肉の層状の筋組織を維持する",
+        "焼き魚では皮・身・焼き目を区別する",
+        "刺身では切断面を滑らかにしつつ筋理を残す",
+        "脂のある魚は細かな反射を許容する"
+      ],
+      "avoid": [
+        "透明なゼリー",
+        "プラスチック",
+        "肉と魚の筋理の混同",
+        "鱗が身の断面にも発生"
+      ]
+    },
+
+    "egg": {
+      "rules": [
+        "白身と黄身の境界を物理的に正しくする",
+        "半熟黄身は粘度のある液体として描写する",
+        "白身には薄い半透明部分と不透明部分の自然な差を許容"
+      ],
+      "avoid": [
+        "蛍光黄色の黄身",
+        "プラスチック球",
+        "黄身内部に白身",
+        "ゼリー状の目玉焼き"
+      ]
+    },
+
+    "noodles": {
+      "rules": [
+        "麺一本一本に連続性を持たせる",
+        "途中で融合・分岐させない",
+        "太さをほぼ一定にする",
+        "ソースやスープによる湿潤は表面の薄膜として扱う"
+      ],
+      "avoid": [
+        "麺が途中で消える",
+        "Y字に分岐",
+        "溶けて一体化",
+        "大量の同一曲線"
+      ]
+    },
+
+    "vegetables": {
+      "rules": [
+        "植物としての繊維・葉脈・断面構造を維持する",
+        "加熱状態に応じて張りとしんなり感を調整する",
+        "水分感は切断面や薄い表面反射として表現する"
+      ],
+      "avoid": [
+        "ワックス模型",
+        "蛍光グリーン",
+        "葉脈の無限反復",
+        "葉と茎の融合"
+      ]
+    },
+
+    "soup_and_sauce": {
+      "rules": [
+        "粘度を料理ごとに指定する",
+        "重力方向へ流れる",
+        "食材の上に均一なプラスチック膜を作らない",
+        "液面反射と具材反射を区別する"
+      ],
+      "avoid": [
+        "スライム",
+        "ゼリー化",
+        "ソースが宙に浮く",
+        "器の縁を越えて不自然に停止"
+      ]
+    },
+
+    "cheese": {
+      "rules": [
+        "溶けたチーズは重力方向へ伸びる",
+        "伸びる本数を限定する",
+        "根元から先へ自然に細くなる",
+        "表面に軽い油分を許容"
+      ],
+      "avoid": [
+        "無限に伸びる",
+        "ゴム",
+        "太さ一定のロープ",
+        "蜘蛛の巣状"
+      ]
+    },
+
+    "bread": {
+      "rules": [
+        "外皮と内部クラムを明確に区別",
+        "内部にはランダムな気泡",
+        "断面の気泡サイズは均一にしない"
+      ],
+      "avoid": [
+        "スポンジ",
+        "完全均一な穴",
+        "プラスチック表皮"
+      ]
+    }
+  },
+
+  "food_separation_rules": {
+    "reason": "複数料理では画像生成モデルが隣接した食品を融合させやすいため、位置関係を明示する。",
+    "instructions": [
+      "皿の左側・中央・右側など空間配置を文章で明示する",
+      "食材同士が混ざる料理なのか、分離している料理なのか明示する",
+      "白米と唐揚げは別々の領域に置く",
+      "唐揚げの衣に米粒を発生させない",
+      "白米に唐揚げの衣模様を転写しない",
+      "キャベツ・レモン・唐揚げの境界を明確にする"
+    ]
+  },
+
+  "lighting": {
+    "default": "large soft light from rear-side, gentle semi-backlighting",
+    "direction": "料理の斜め後ろ45～120度程度から柔らかい主光源",
+    "fill": "カメラ側から弱い自然な反射光",
+    "goals": [
+      "表面の微細な凹凸を見せる",
+      "水分感と油分感を局所的に見せる",
+      "白米の粒を影で分離する",
+      "唐揚げの衣の凹凸を小さな陰影で表現する"
+    ],
+    "avoid": [
+      "camera mounted direct flash",
+      "completely flat frontal lighting",
+      "hard spotlight",
+      "overexposed highlights",
+      "extreme HDR",
+      "strong colored restaurant lighting"
+    ]
+  },
+
+  "camera_and_rendering": {
+    "style": "real professional food photography",
+    "lens": "50mm to 100mm equivalent",
+    "preferred": "70mm to 90mm equivalent for natural perspective",
+    "aperture": "f/4 to f/8 depending on composition",
+    "depth_of_field": "主役となる料理の主要部分は十分に解像し、背景のみ自然にぼかす",
+    "focus": "衣、米粒、肉の断面など、料理の食感を伝える部分",
+    "white_balance": "neutral to slightly warm",
+    "exposure": "bright but highlight-safe",
+    "rendering_rules": [
+      "physically plausible optics",
+      "natural microcontrast",
+      "subtle highlight rolloff",
+      "realistic shadow softness",
+      "no excessive sharpening",
+      "no fake HDR",
+      "no CGI look"
+    ]
+  },
+
+  "negative_prompt_global": [
+    "AI generated food appearance",
+    "surreal food",
+    "uncanny food",
+    "CGI food",
+    "3D render",
+    "plastic texture",
+    "wax food",
+    "toy food",
+    "rubber texture",
+    "slimy",
+    "melted anatomy",
+    "merged foods",
+    "duplicated ingredients",
+    "repeated identical shapes",
+    "structural artifacts",
+    "distorted food structure",
+    "floating ingredients",
+    "impossible geometry",
+    "extreme saturation",
+    "neon colors",
+    "excessive gloss",
+    "wet everything",
+    "excessive steam",
+    "excessive oil",
+    "burned black areas",
+    "oversharpened",
+    "extreme HDR",
+    "perfect symmetry"
+  ],
+
+  "validation_before_output": {
+    "instruction": "画像を完成と判断する前に以下を内部的に点検し、1項目でも重大な違反がある場合は構図を維持して再生成する。",
+    "checks": [
+      {
+        "id": "V01",
+        "check": "料理名を画像だけから正しく識別できるか"
+      },
+      {
+        "id": "V02",
+        "check": "食材の数が意図せず増減していないか"
+      },
+      {
+        "id": "V03",
+        "check": "異なる料理同士が融合していないか"
+      },
+      {
+        "id": "V04",
+        "check": "白米の各粒が生米・真珠・虫・麺・粥に見えないか"
+      },
+      {
+        "id": "V05",
+        "check": "白米が粒を保ったまま自然にまとまっているか"
+      },
+      {
+        "id": "V06",
+        "check": "唐揚げが球・岩・ナゲットに見えないか"
+      },
+      {
+        "id": "V07",
+        "check": "唐揚げの衣が片栗粉由来の細かな不均一性を持っているか"
+      },
+      {
+        "id": "V08",
+        "check": "唐揚げの色が単一オレンジ色になっていないか"
+      },
+      {
+        "id": "V09",
+        "check": "油・水分・ソースの光沢が物理的に正しい場所だけに存在するか"
+      },
+      {
+        "id": "V10",
+        "check": "同じ形状の食材が不自然に複製されていないか"
+      },
+      {
+        "id": "V11",
+        "check": "重力・接触・積み重なりが自然か"
+      },
+      {
+        "id": "V12",
+        "check": "彩度・シャープネス・HDRが過剰でないか"
+      },
+      {
+        "id": "V13",
+        "check": "CGや食品サンプルではなく実際の食べ物に見えるか"
+      },
+      {
+        "id": "V14",
+        "check": "人が実際に食べたいと思える正常な料理状態か"
+      }
+    ]
+  },
+
+  "master_prompt_template": {
+    "positive_prompt": "実際に調理された日本料理を、プロのフードフォトグラファーが撮影した極めて自然な写真。{dish_description}。料理の各構成要素は現実の調理法と食材構造に従う。食材は互いに不自然に融合しない。形、大きさ、焼き色、衣、粒、表面には自然な個体差がある。白米がある場合、炊飯された短粒米の一粒一粒がふっくら膨らみ、柔らかく接着しながらも粒形を維持する。唐揚げがある場合、一口大の不規則な鶏もも肉に薄～中程度の片栗粉主体の衣が付き、細かな凹凸、ひび、淡い部分ときつね色のまだらな焼き色を持ち、油の反射は局所的。料理全体を濡らさない。柔らかな半逆光、自然な陰影、現実的な色、実際の料理写真らしい微細な質感。50～100mm相当の自然なパース。photorealistic real food photography, physically plausible food texture, natural imperfections, realistic moisture, subtle specular highlights.",
+    "negative_prompt": "AI-looking food, CGI, plastic food, wax food, toy food, surreal food, malformed food, merged ingredients, duplicated food, identical repeated pieces, impossible geometry, excessive gloss, slime, excessive oil, neon orange, extreme saturation, overprocessed HDR, oversharpening, perfect symmetry, floating food, distorted rice grains, pearl-like rice, uncooked-looking rice, rice paste, rice lump with painted grain texture, perfectly round karaage, orange rock karaage, chicken nuggets, breadcrumb spikes, glazed fried chicken, wet fried chicken"
+  },
+
+  "example_japanese_meal_prompt": {
+    "dish": "白米と鶏もも肉の唐揚げ定食",
+    "prompt": "日本の食堂で提供される、炊きたての白米と揚げたての鶏もも肉の唐揚げ。白米は日本の短粒米で、一粒一粒がふっくらと膨らみ、柔らかく軽く付着しながらも粒の輪郭が確認できる。米粒は真っ白に飛ばず、わずかに温かい乳白色で、細かな半透明のハイライトのみ。水滴はない。唐揚げは一口大の不規則な鶏もも肉で、各ピースの大きさと形は少し異なる。片栗粉主体の薄～中程度の衣には細かな凹凸、小さなひび、淡いベージュ部分と黄金色からきつね色の自然な色ムラがある。突出部だけ少し濃い。表面の大部分はサクッとしたマットな質感で、ごく一部だけ揚げ油による小さな反射がある。唐揚げを球体、岩、ナゲット、パン粉フライにはしない。白米と唐揚げを融合させない。横に自然な千切りキャベツと小さなレモン。料理の斜め後方から大きな柔らかい光源による半逆光。唐揚げの衣と白米の粒に細かな陰影を作り、実物の料理と同じ質感を描写する。広告CGではなく、実際に作られた定食をプロの料理写真家が85mmレンズで撮影した自然なフードフォト。"
+  }
+}

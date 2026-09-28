@@ -7,6 +7,7 @@ import { randomBytes } from "crypto";
 import { existsSync, mkdirSync } from "fs";
 import { dirname, resolve } from "path";
 import { DB_PATH } from "./db";
+import { buildImagePrompt, type ImageDish } from "./image-prompt";
 
 export const IMAGE_DIR = resolve(dirname(DB_PATH), "images");
 const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-2";
@@ -18,25 +19,7 @@ export function imagesEnabled(): boolean {
 
 export class ImageError extends Error {}
 
-interface Dish {
-  name: string;
-  concept?: string;
-  plating?: string;
-  ingredients?: { item: string; amount: string }[];
-}
-
-function buildPrompt(dish: Dish, category: string): string {
-  const items = (dish.ingredients ?? []).map((i) => i.item).slice(0, 8).join("、");
-  return `日本の寿司店のカウンターで出す${category === "nigiri" ? "握り寿司" : "一品料理"}の料理写真。
-料理名: ${dish.name}
-ねらい: ${dish.concept ?? ""}
-主な材料: ${items}
-盛り付け: ${dish.plating ?? ""}
-
-白木のカウンターの上、やわらかい自然光、真上から少し斜めのアングル、浅い被写界深度。
-高級寿司店のメニュー写真のように上品で、実際に作れる現実的な盛り付けにする。
-文字・ロゴ・人物・手は入れない。`;
-}
+type Dish = ImageDish;
 
 /** 生成中の重複を防ぐ（同じ品を連打されても 1 回だけ作る） */
 const pending = new Map<string, Promise<string>>();
@@ -72,7 +55,7 @@ export function generateDishImage(
   if (running) return running;
 
   const job = (async () => {
-    const body: Record<string, unknown> = { model: IMAGE_MODEL, prompt: buildPrompt(dish, category), size: "1024x1024", n: 1 };
+    const body: Record<string, unknown> = { model: IMAGE_MODEL, prompt: buildImagePrompt(dish, category), size: "1024x1024", n: 1 };
     if (IMAGE_QUALITY) body.quality = IMAGE_QUALITY;
     const res = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
