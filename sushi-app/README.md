@@ -29,7 +29,10 @@ bun server.ts                # → http://localhost:5800/  店舗コード DEMO 
 | luxury | 30,000円〜 |
 
 - ヨルノズクは `loop.ts research-targets` で、登録店舗の価格帯ごとに調べる件数を決め、各トレンドに `price_band` を付けて登録する
-- リサーチは日本全国に加えて世界中の鮨店が対象。約 3 分の 1 を海外から集め、各トレンドに `origin`（japan / overseas）と `region`（都市）を付ける。海外の価格は円に直して価格帯を決める
+- リサーチ対象のルール（`src/research-rules.ts`、登録時に検査）
+  - 握り: 日本の寿司屋・鮨店・鮨関連アカウントのみ（`source_kind` = sushi_shop / sushi_account、`origin` = japan）
+  - 一品料理: 上記に加えて日本料理店・創作和食店（japanese_restaurant / creative_washoku）。海外も可
+  - 全体の約 3 分の 1 を海外の一品料理から集める。海外の価格は円に直して価格帯を決める
 - 提案では、海外のトレンドはそのまま真似ず、日本の素材と寿司店の仕事に置き換えるよう AI に指示している
 - 提案では、お店の情報を AI に渡し、同じ価格帯（次に隣の価格帯・価格帯を問わないもの）のトレンドと評価を優先する
 

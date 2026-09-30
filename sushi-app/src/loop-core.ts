@@ -6,6 +6,7 @@
 import type { Database } from "bun:sqlite";
 import { randomBytes } from "crypto";
 import { BAND_IDS, PRICE_BANDS, bandFor } from "./shop-profile";
+import { RESEARCH_RULES, SOURCE_KINDS, checkResearchRule } from "./research-rules";
 
 const DEFAULT_SCHEDULE = [{ at: "T+3d" }, { at: "T+7d", final: true }];
 const MAX_HYPOTHESES_PER_RUN = 6;
@@ -135,7 +136,7 @@ export function runLoop(db: Database, cmd: string | undefined, args: string[], i
       return {
         data: db
           .query(
-            `SELECT id, category, title, summary, ingredients, techniques, season, region, origin, price_band, source_type, observed_at
+            `SELECT id, category, title, summary, ingredients, techniques, season, region, origin, source_kind, price_band, source_type, observed_at
                FROM trends WHERE status='active' AND observed_at >= date('now','localtime', ?)
               ORDER BY observed_at DESC, id DESC`,
           )
@@ -197,9 +198,14 @@ export function runLoop(db: Database, cmd: string | undefined, args: string[], i
       return {
         data: {
           total,
+          rules: {
+            nigiri: { sources: RESEARCH_RULES.nigiri.kinds.map((k) => `${k}: ${SOURCE_KINDS[k]}`), origin: "日本のみ" },
+            dish: { sources: RESEARCH_RULES.dish.kinds.map((k) => `${k}: ${SOURCE_KINDS[k]}`), origin: "日本と海外" },
+            both: "握り・一品の両方に使える流行は、日本の寿司屋・鮨関連アカウントの情報だけ",
+          },
           overseas: {
             target_count: Math.round(total * OVERSEAS_SHARE),
-            note: "価格帯ごとの件数（bands と general）のうち、この件数ぶんを海外の鮨店から集める（各価格帯に散らす）",
+            note: "海外は一品料理だけ。価格帯ごとの件数（bands と general）のうち、この件数ぶんを海外の鮨店・日本料理店・創作和食店の一品料理から集める",
             last_30_days_by_origin: Object.fromEntries(byOrigin.map((r) => [r.origin, r.c])),
             regions_last_60_days: overseasRegions,
           },
@@ -214,8 +220,8 @@ export function runLoop(db: Database, cmd: string | undefined, args: string[], i
       const items = input;
       if (!Array.isArray(items)) die("配列 [...] で渡してください");
       const insert = db.query(
-        `INSERT INTO trends (category, title, summary, ingredients, techniques, season, region, price_band, origin, source_type, source_url, collected_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'noctowl-researcher')`,
+        `INSERT INTO trends (category, title, summary, ingredients, techniques, season, region, price_band, origin, source_kind, source_type, source_url, collected_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'noctowl-researcher')`,
       );
       // 1 つの記事から複数の傾向を取れるよう、重複は見出しで判定する
       const exists = db.query<{ id: number }, [string]>("SELECT id FROM trends WHERE title = ? LIMIT 1");
@@ -225,11 +231,13 @@ export function runLoop(db: Database, cmd: string | undefined, args: string[], i
         const summary = str(t.summary, 300);
         const url = str(t.source_url, 500);
         const band = t.price_band === undefined || t.price_band === null || t.price_band === "all" ? null : t.price_band;
+        const ruleViolation = checkResearchRule(t.category, t.source_kind, t.origin);
         const why =
           !isCategory(t.category) ? "category が不正" :
           band !== null && !BAND_IDS.includes(band) ? `price_band は ${BAND_IDS.join(" / ")} / all のどれか` :
           t.origin !== "japan" && t.origin !== "overseas" ? "origin は japan か overseas" :
           !str(t.region, 40) ? "region（都市・地域）が空" :
+          ruleViolation ? ruleViolation :
           !title || !summary ? "title / summary が空" :
           t.source_type !== "sns" && t.source_type !== "web" ? "source_type は sns か web" :
           !/^https?:\/\//.test(url) ? "source_url が URL ではない" :
@@ -240,7 +248,7 @@ export function runLoop(db: Database, cmd: string | undefined, args: string[], i
         }
         insert.run(
           t.category, title, summary, JSON.stringify(strList(t.ingredients)), JSON.stringify(strList(t.techniques)),
-          str(t.season, 20) || null, str(t.region, 40) || null, band, t.origin, t.source_type, url,
+          str(t.season, 20) || null, str(t.region, 40) || null, band, t.origin, t.source_kind, t.source_type, url,
         );
         result.added++;
       }
