@@ -15,6 +15,7 @@
  *                         すべて揃うと有料プランを出す（揃うまでは無料デモだけで動く）
  *   APP_URL               公開 URL（Stripe から戻る先。無ければリクエストの URL から作る）
  *   TERMS_URL / CONTACT_TEXT  利用規約・特定商取引法の表記ページ、問い合わせ先
+ *   ADMIN_PASSWORD        管理画面（/admin）のパスワード。無ければ管理画面は使えない
  */
 
 import { resolve, dirname } from "path";
@@ -28,6 +29,7 @@ import { billingEnabled, publicBillingInfo, planById, type PlanId } from "./src/
 import { creditsFor, loadBillingShop, reserveCredit, refundCredit, recordSubscription, recordPlanStatus, billingSetting, demoTotalUsed } from "./src/credits";
 import { checkSubscription, confirmCheckout, createCheckout, createPortal, findSubscriptionByCode, forgetSubscription, StripeError } from "./src/billing";
 import { randomBytes } from "crypto";
+import { adminEnabled, isAdmin, handleAdminLogin, handleAdminLogout, adminOverview, adminRecentProposals, adminCommand } from "./src/admin";
 import { timingSafeEqual } from "crypto";
 import { existsSync } from "fs";
 import { basename } from "path";
@@ -409,6 +411,23 @@ Bun.serve({
       return json({ ...shopView(shop), billing: await billingView(shop, url.searchParams.get("fresh") === "1") });
     }
     if (route === "GET /api/billing") return json(publicBillingInfo());
+
+    // ---- 管理画面 ----
+    if (url.pathname === "/admin" || url.pathname.startsWith("/api/admin/")) {
+      if (!adminEnabled()) return fail("Not found", 404);
+      if (route === "GET /admin") return new Response(Bun.file(resolve(here, "public/admin.html")), { headers: { "x-robots-tag": "noindex" } });
+      if (route === "POST /api/admin/login") return handleAdminLogin(req);
+      if (route === "POST /api/admin/logout") return handleAdminLogout();
+      if (!isAdmin(req)) return fail("ログインしてください", 401);
+      if (route === "GET /api/admin/overview") return json(adminOverview(db));
+      if (route === "GET /api/admin/proposals") {
+        const list = adminRecentProposals(db, url.searchParams.get("code") ?? "");
+        return list ? json(list) : fail("店舗がありません", 404);
+      }
+      if (route === "POST /api/admin/shop") return adminCommand(db, "set-shop-billing", await req.json().catch(() => null));
+      if (route === "POST /api/admin/settings") return adminCommand(db, "set-billing-settings", await req.json().catch(() => null));
+      return fail("Not found", 404);
+    }
     if (route === "POST /api/register") return handleRegister(req);
     if (route === "POST /api/billing/checkout") return handleCheckout(req);
     if (route === "POST /api/billing/confirm") return handleConfirm(req);

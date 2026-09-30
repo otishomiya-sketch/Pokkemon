@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>管理画面 | "鮨"新メニュー開発APP</title>
+<style>
+  :root {
+    --bg: #f6f1e7; --surface: #fffdf8; --fg: #1f1b16; --muted: #6f665a; --line: #e2d9c8;
+    --accent: #b33a2b; --accent-fg: #fff; --soft: #f0e7d6; --ok: #2f6b4f; --ok-soft: #e3efe8; --warn: #9a6a12; --warn-soft: #f7ecd6;
+    --internal: #3d4f7a; --internal-soft: #e6e9f2;
+    --serif: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #16130f; --surface: #211d18; --fg: #efe8dc; --muted: #a79d8f; --line: #3a332b;
+      --accent: #e0604c; --accent-fg: #1a0e0b; --soft: #2b261f; --ok: #6fbf95; --ok-soft: #1c2b23; --warn: #e0b35a; --warn-soft: #2d2616;
+      --internal: #9fb2e0; --internal-soft: #1f2433;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif; font-size: 15px; line-height: 1.6;
+         padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+  main { max-width: 760px; margin: 0 auto; padding: 0 16px 56px; }
+  header { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .bar { max-width: 760px; margin: 0 auto; padding: 12px 16px; display: flex; align-items: center; gap: 10px; }
+  .brand { font-family: var(--serif); font-size: 17px; font-weight: 700; }
+  .brand small { display: block; font-family: inherit; font-size: 12px; font-weight: 400; color: var(--muted); }
+  .bar .spacer { flex: 1; }
+  h2 { font-family: var(--serif); font-size: 17px; margin: 28px 0 10px; }
+  .btn { font: inherit; font-size: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 9px; padding: 7px 12px; cursor: pointer; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
+  .btn:disabled { opacity: .5; }
+  input[type=text], input[type=password], input[type=number], input[type=search] {
+    font: inherit; font-size: 16px; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; width: 100%; }
+  input:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .muted { color: var(--muted); }
+  .error { color: var(--accent); font-size: 14px; }
+  .ok-msg { color: var(--ok); font-size: 13px; }
+
+  .login { max-width: 360px; margin: 18vh auto 0; display: flex; flex-direction: column; gap: 12px; padding: 0 16px; }
+  .login h1 { font-family: var(--serif); font-size: 22px; margin: 0; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 11px; padding: 11px 13px; }
+  .stat .label { font-size: 12px; color: var(--muted); }
+  .stat .value { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.3; }
+  .stat .sub { font-size: 12px; color: var(--muted); }
+
+  .settings { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
+  .settings label { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+
+  .tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .tools input { flex: 1 1 180px; }
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; }
+  .filters button { font: inherit; font-size: 13px; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 4px 11px; cursor: pointer; }
+  .filters button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+
+  .shops { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+  .shop { background: var(--surface); border: 1px solid var(--line); border-radius: 13px; padding: 14px 15px; }
+  .shop-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .shop-name { font-family: var(--serif); font-size: 17px; font-weight: 700; }
+  .pill { font-size: 12px; border-radius: 999px; padding: 1px 9px; font-weight: 600; }
+  .pill.paid { background: var(--ok-soft); color: var(--ok); }
+  .pill.demo { background: var(--warn-soft); color: var(--warn); }
+  .pill.internal { background: var(--internal-soft); color: var(--internal); }
+  .code { font-family: ui-monospace, Menlo, monospace; font-size: 13px; color: var(--muted); }
+  .copy { font: inherit; font-size: 12px; border: 0; background: none; color: var(--accent); padding: 0; cursor: pointer; text-decoration: underline; }
+  .remain { margin-top: 8px; font-size: 14px; }
+  .remain b { font-size: 18px; font-variant-numeric: tabular-nums; }
+  .facts { margin-top: 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 4px 12px; font-size: 13px; }
+  .facts span { color: var(--muted); }
+  .facts b { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--fg); }
+  details { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
+  summary { cursor: pointer; font-size: 14px; color: var(--accent); }
+  .edit { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .edit label { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+  .edit .full { grid-column: 1 / -1; }
+  .edit .check { flex-direction: row; align-items: center; gap: 8px; font-size: 14px; color: var(--fg); }
+  .edit .actions { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .props { margin: 8px 0 0; padding-left: 1.1em; font-size: 13px; }
+  .props li { margin: 4px 0; }
+  .empty { text-align: center; color: var(--muted); padding: 24px 0; }
+  @media (max-width: 480px) {
+    .settings { grid-template-columns: 1fr 1fr; }
+    .settings .btn { grid-column: 1 / -1; }
+    .edit { grid-template-columns: 1fr; }
+  }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<section id="loginView" hidden>
+  <form class="login" id="loginForm">
+    <h1>管理画面</h1>
+    <p class="muted" style="margin:0">"鮨"新メニュー開発APP の管理者用ページです。</p>
+    <label for="password" class="muted" style="font-size:13px">管理用パスワード</label>
+    <input id="password" type="password" autocomplete="current-password">
+    <button class="btn primary" type="submit">ログイン</button>
+    <p id="loginError" class="error" hidden></p>
+  </form>
+</section>
+
+<section id="adminView" hidden>
+  <header>
+    <div class="bar">
+      <div class="brand">管理画面<small>"鮨"新メニュー開発APP</small></div>
+      <span class="spacer"></span>
+      <button class="btn" id="reload" type="button">更新</button>
+      <button class="btn" id="logout" type="button">ログアウト</button>
+    </div>
+  </header>
+  <main>
+    <h2 id="summaryTitle">全体</h2>
+    <div class="stats" id="stats"></div>
+
+    <h2>無料デモの設定</h2>
+    <form class="settings" id="settingsForm">
+      <label>全店合計の上限（素材）<input id="demoTotal" type="number" min="0" step="1"></label>
+      <label>新しいお店の上限（素材）<input id="demoDefault" type="number" min="0" step="1"></label>
+      <button class="btn primary" type="submit">保存</button>
+    </form>
+    <p id="settingsMsg" class="ok-msg" hidden></p>
+
+    <h2>店舗</h2>
+    <div class="tools">
+      <input id="search" type="search" placeholder="店名・コード・メモで探す">
+    </div>
+    <div class="filters" id="filters" style="margin-top:8px">
+      <button type="button" data-f="all" aria-pressed="true">すべて</button>
+      <button type="button" data-f="paid" aria-pressed="false">有料</button>
+      <button type="button" data-f="demo" aria-pressed="false">無料デモ</button>
+      <button type="button" data-f="internal" aria-pressed="false">社内用</button>
+    </div>
+    <div class="shops" id="shops"></div>
+  </main>
+</section>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const yen = (n) => Number(n || 0).toLocaleString("ja-JP");
+const BAND = { value: "〜3,000円", casual: "3,000〜8,000円", standard: "8,000〜15,000円", premium: "15,000〜30,000円", luxury: "30,000円〜" };
+const PLAN = { light: "ライト", standard: "スタンダード", pro: "プロ" };
+const STATUS = { paid: "有料", demo: "無料デモ", internal: "社内用" };
+const state = { data: null, filter: "all", query: "" };
+
+async function api(path, options = {}) {
+  const res = await fetch(path, { ...options, headers: { "content-type": "application/json", ...options.headers } });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && path !== "/api/admin/login") { showLogin(); throw new Error(data.error || "ログインしてください"); }
+  if (!res.ok) throw new Error(data.error || "通信に失敗しました");
+  return data;
+}
+
+function showLogin() { $("adminView").hidden = true; $("loginView").hidden = false; $("password").focus(); }
+
+async function load() {
+  state.data = await api("/api/admin/overview");
+  $("loginView").hidden = true; $("adminView").hidden = false;
+  render();
+}
+
+function render() {
+  const d = state.data, t = d.totals;
+  $("summaryTitle").textContent = `全体（${d.month.replace("-", "年")}月）`;
+  const byPlan = t.by_plan.filter((p) => p.count).map((p) => `${p.name} ${p.count}`).join("・") || "まだありません";
+  $("stats").innerHTML = [
+    ["登録店舗", t.shops, `新規（7日） ${t.new_shops_7d}`],
+    ["有料", t.paid, byPlan],
+    ["無料デモ", t.demo, `使用 ${t.demo_used_total} / ${d.settings.demo_total_limit} 素材`],
+    ["社内用", t.internal, ""],
+    ["月の売上見込み", `${yen(t.monthly_revenue)}円`, "税別・契約中のプランから計算"],
+    ["今月の提案", t.proposals_month, "回"],
+    ["評価の合計", t.ratings_total, "件"],
+    ["画像の合計", t.images_total, "枚"],
+  ].map(([label, value, sub]) => `<div class="stat"><div class="label">${label}</div><div class="value">${esc(value)}</div><div class="sub">${esc(sub)}</div></div>`).join("");
+  $("demoTotal").value = d.settings.demo_total_limit;
+  $("demoDefault").value = d.settings.demo_default_limit;
+  renderShops();
+}
+
+function renderShops() {
+  const q = state.query.toLowerCase();
+  const list = state.data.shops.filter((s) =>
+    (state.filter === "all" || s.status === state.filter) &&
+    (!q || [s.name, s.code, s.memo, s.concept].some((x) => String(x ?? "").toLowerCase().includes(q))));
+  $("shops").innerHTML = list.length ? list.map(shopCard).join("") : `<p class="empty">該当する店舗はありません</p>`;
+}
+
+function shopCard(s) {
+  let remain;
+  if (s.status === "internal") remain = `回数の制限なし`;
+  else if (s.status === "paid") remain = `今月の残り <b>${s.remaining}</b> 素材（${esc(PLAN[s.plan] ?? s.plan)}・今月 ${s.month_used} 使用・繰越 ${s.carryover}）`;
+  else remain = `無料デモの残り <b>${s.remaining}</b> 素材（${s.demo_used} / ${s.demo_limit_effective} 使用${s.demo_limit === null ? "・既定の上限" : ""}）`;
+  const facts = [
+    ["価格帯", s.price_band ? BAND[s.price_band] : "未登録"],
+    ["客単価", s.price_per_guest ? `${yen(s.price_per_guest)}円` : "未登録"],
+    ["提案（今月）", s.proposals_month],
+    ["提案（合計）", s.proposals],
+    ["評価", s.ratings],
+    ["画像", s.images],
+    ["最終利用", s.last_used_at ? s.last_used_at.slice(5, 16) : "まだ"],
+    ["登録日", s.created_at ? s.created_at.slice(0, 10) : ""],
+  ].map(([k, v]) => `<div><span>${k}</span> <b>${esc(v)}</b></div>`).join("");
+  return `<article class="shop" data-code="${esc(s.code)}">
+    <div class="shop-head">
+      <span class="shop-name">${esc(s.name)}</span>
+      <span class="pill ${s.status}">${STATUS[s.status]}${s.status === "paid" ? `・${esc(PLAN[s.plan] ?? "")}` : ""}</span>
+    </div>
+    <div><span class="code">${esc(s.code)}</span> <button type="button" class="copy" data-copy="${esc(s.code)}">コピー</button></div>
+    ${s.memo ? `<div class="muted" style="font-size:13px;margin-top:4px">メモ：${esc(s.memo)}</div>` : ""}
+    <div class="remain">${remain}</div>
+    <div class="facts">${facts}</div>
+    <details>
+      <summary>お店の情報</summary>
+      <p style="margin:8px 0 0;font-size:14px">${esc(s.concept || "コンセプト未登録")}</p>
+      <p class="muted" style="margin:4px 0 0;font-size:13px">${esc((s.features || []).join("・") || "特徴未登録")}</p>
+    </details>
+    <details class="recent">
+      <summary>最近の提案</summary>
+      <div class="recent-body muted" style="font-size:13px;margin-top:6px">読み込み中…</div>
+    </details>
+    <details>
+      <summary>設定を変える</summary>
+      <form class="edit">
+        <label class="check full"><input type="checkbox" name="internal" ${s.internal ? "checked" : ""}> 社内用にする（回数の制限なし・全体の上限に数えない）</label>
+        <label>無料デモの上限（素材）<input type="number" name="demo_limit" min="0" step="1" value="${s.demo_limit ?? ""}" placeholder="既定（${state.data.settings.demo_default_limit}）"></label>
+        <label>無料デモの使用（素材）<input type="number" name="demo_used" min="0" step="1" value="${s.demo_used}"></label>
+        <label class="full">メモ<input type="text" name="memo" maxlength="200" value="${esc(s.memo ?? "")}"></label>
+        <div class="actions"><button class="btn primary" type="submit">保存</button><span class="msg"></span></div>
+      </form>
+    </details>
+  </article>`;
+}
+
+// ---- 操作 ----
+$("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("loginError").hidden = true;
+  try {
+    await api("/api/admin/login", { method: "POST", body: JSON.stringify({ password: $("password").value }) });
+    $("password").value = "";
+    await load();
+  } catch (err) { $("loginError").textContent = err.message; $("loginError").hidden = false; }
+});
+
+$("logout").onclick = async () => { await api("/api/admin/logout", { method: "POST" }).catch(() => {}); showLogin(); };
+$("reload").onclick = () => load().catch(() => {});
+
+$("settingsForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("settingsMsg").hidden = true;
+  try {
+    await api("/api/admin/settings", { method: "POST", body: JSON.stringify({ demo_total_limit: Number($("demoTotal").value), demo_default_limit: Number($("demoDefault").value) }) });
+    await load();
+    $("settingsMsg").textContent = "保存しました"; $("settingsMsg").hidden = false;
+  } catch (err) { $("settingsMsg").textContent = err.message; $("settingsMsg").hidden = false; }
+});
+
+$("search").addEventListener("input", (e) => { state.query = e.target.value; renderShops(); });
+$("filters").onclick = (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  state.filter = b.dataset.f;
+  for (const x of $("filters").children) x.setAttribute("aria-pressed", String(x === b));
+  renderShops();
+};
+
+document.addEventListener("click", async (e) => {
+  const c = e.target.closest(".copy");
+  if (!c) return;
+  try { await navigator.clipboard.writeText(c.dataset.copy); c.textContent = "コピーしました"; }
+  catch { c.textContent = c.dataset.copy; }
+  setTimeout(() => (c.textContent = "コピー"), 1800);
+});
+
+// 最近の提案は開いたときに読み込む
+document.addEventListener("toggle", async (e) => {
+  const d = e.target;
+  if (!d.classList?.contains("recent") || !d.open || d.dataset.loaded) return;
+  const code = d.closest(".shop").dataset.code;
+  const body = d.querySelector(".recent-body");
+  try {
+    const list = await api(`/api/admin/proposals?code=${encodeURIComponent(code)}`);
+    d.dataset.loaded = "1";
+    body.innerHTML = list.length
+      ? `<ul class="props">${list.map((p) => `<li>${esc(p.created_at.slice(5, 16))}・${p.category === "nigiri" ? "握り" : "一品料理"}・${esc(p.ingredients.join("、"))}<br><span style="color:var(--fg)">${esc(p.dishes.join(" ／ "))}</span></li>`).join("")}</ul>`
+      : "まだ提案はありません";
+  } catch (err) { body.textContent = err.message; }
+}, true);
+
+document.addEventListener("submit", async (e) => {
+  const form = e.target.closest(".edit");
+  if (!form) return;
+  e.preventDefault();
+  const code = form.closest(".shop").dataset.code;
+  const msg = form.querySelector(".msg");
+  const f = new FormData(form);
+  const limit = f.get("demo_limit");
+  const payload = {
+    code,
+    internal: f.get("internal") === "on",
+    demo_limit: limit === "" ? null : Number(limit),
+    demo_used: Number(f.get("demo_used")),
+    memo: String(f.get("memo") ?? ""),
+  };
+  try {
+    await api("/api/admin/shop", { method: "POST", body: JSON.stringify(payload) });
+    await load();
+    const card = document.querySelector(`.shop[data-code="${CSS.escape(code)}"]`);
+    const again = card?.querySelector(".msg");
+    if (again) { again.closest("details").open = true; again.textContent = "保存しました"; again.className = "msg ok-msg"; }
+  } catch (err) { msg.textContent = err.message; msg.className = "msg error"; }
+});
+
+load().catch(() => showLogin());
+</script>
+</body>
+</html>
