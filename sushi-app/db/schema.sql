@@ -139,3 +139,12 @@ CREATE TABLE IF NOT EXISTS dish_images (
   created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   UNIQUE (proposal_id, dish_index)
 );
+
+-- 有料化の設定（管理者が loop.ts billing-settings で変える）
+CREATE TABLE IF NOT EXISTS billing_settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+INSERT OR IGNORE INTO billing_settings (key, value) VALUES
+  ('demo_total_limit', '300'),   -- 無料デモの全店合計の上限（素材）
+  ('demo_default_limit', '3');   -- 新しく登録したお店の無料デモの上限（素材）

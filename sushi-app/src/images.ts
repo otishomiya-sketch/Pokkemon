@@ -65,10 +65,10 @@ export function generateDishImage(
     const text = await res.text();
     if (!res.ok) {
       console.error(`[images] OpenAI error ${res.status}: ${text.slice(0, 300)}`);
-      if (res.status === 401) throw new ImageError("画像サービスの API キーが正しくありません");
+      if (res.status === 401) throw new ImageError("ただいま画像を作れません。時間をおいてお試しください");
       if (res.status === 429) throw new ImageError("画像サービスが混み合っています。少し待ってからもう一度お試しください");
       if (res.status === 400 && /safety|moderation/i.test(text)) throw new ImageError("この料理は画像にできませんでした");
-      throw new ImageError(`画像の作成に失敗しました（${res.status}）`);
+      throw new ImageError("画像を作れませんでした。時間をおいてお試しください");
     }
     const first = (JSON.parse(text) as { data?: { b64_json?: string; url?: string }[] }).data?.[0];
     let bytes: Buffer;

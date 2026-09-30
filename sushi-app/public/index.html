@@ -117,6 +117,27 @@
   .login .brand { font-size: 26px; }
   .login form { margin-top: 28px; text-align: left; }
   .back { font: inherit; border: 0; background: none; color: var(--accent); padding: 16px 0 0; }
+  .credit { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px;
+            font-size: 14px; color: var(--muted); }
+  .credit b { color: var(--fg); font-size: 16px; font-variant-numeric: tabular-nums; }
+  .credit a, .linkish { color: var(--accent); font: inherit; font-size: 14px; background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+  .upsell { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+            padding: 10px 12px; border-radius: 10px; background: var(--soft); border: 1px solid var(--line); font-size: 14px; }
+  .btn.small { padding: 8px 12px; font-size: 14px; }
+  .btn.accent { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+  .notice { margin-top: 16px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--ok); color: var(--fg); font-size: 14px; }
+  .plans { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+  .plan-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 12px; padding: 12px 14px;
+              border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+  .plan-row .pname { font-family: var(--serif); font-size: 17px; font-weight: 700; }
+  .plan-row .pdesc { font-size: 13px; color: var(--muted); grid-column: 1; }
+  .plan-row .pprice { font-size: 14px; grid-column: 1; font-variant-numeric: tabular-nums; }
+  .plan-row button { grid-column: 2; grid-row: 1 / span 3; }
+  .fine { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.7; }
+  .fine a { color: var(--muted); }
+  .have-code { margin-top: 28px; }
+  .have-code summary { color: var(--muted); font-size: 14px; }
+  .fallback { font-size: 13px; margin-top: 8px; word-break: break-all; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -125,12 +146,23 @@
 <section id="login" class="login" hidden>
   <main>
     <div class="brand">"鮨"新メニュー開発APP<small>素材から、今日の新しい一品を</small></div>
-    <form id="loginForm">
-      <label for="shopCode" class="hint" style="display:block;margin:0 0 8px">店舗コード</label>
-      <input id="shopCode" type="text" autocomplete="off" autocapitalize="characters" placeholder="例：AB23CD45EF">
-      <button class="btn primary" type="submit">はじめる</button>
-      <p id="loginError" class="error" hidden></p>
+    <p id="lineNotice" class="upsell" hidden>LINE の中のブラウザでは、うまく動かないことがあります。<a id="lineReopen" class="btn small" href="#">ブラウザで開き直す</a></p>
+    <form id="registerForm">
+      <label for="regName" class="hint" style="display:block;margin:0 0 8px">お店の名前</label>
+      <input id="regName" type="text" maxlength="60" autocomplete="organization" placeholder="例：鮨 大宮">
+      <button id="regSubmit" class="btn primary" type="submit">無料デモをはじめる</button>
+      <p class="fine">登録はお店の名前だけです。パスワードは要りません。次からは同じリンクを開くだけで続きから使えます。</p>
+      <p id="regError" class="error" hidden></p>
     </form>
+    <details class="have-code" id="haveCode">
+      <summary>店舗コードをお持ちの方</summary>
+      <form id="loginForm">
+        <label for="shopCode" class="hint" style="display:block;margin:12px 0 8px">店舗コード</label>
+        <input id="shopCode" type="text" autocomplete="off" autocapitalize="characters" placeholder="例：AB23CD45EF">
+        <button class="btn primary" type="submit">はじめる</button>
+        <p id="loginError" class="error" hidden></p>
+      </form>
+    </details>
   </main>
 </section>
 
@@ -148,8 +180,11 @@
 
   <main>
     <p id="demoBanner" class="banner" hidden>デモモードです。APIキーを設定すると、AIが実際に提案を作ります。今は見本を表示しています。</p>
+    <p id="lineBar" class="upsell" hidden>LINE の中のブラウザでは、うまく動かないことがあります。<a id="lineReopen2" class="btn small" href="#">ブラウザで開き直す</a></p>
+    <div id="notice" class="notice" hidden></div>
 
     <div id="tab-propose">
+      <div id="creditBar"></div>
       <form id="proposeForm">
         <h2>一　素材</h2>
         <p class="hint">手元にある魚・野菜・果物などを入れてください（8つまで）</p>
@@ -170,7 +205,9 @@
         <textarea id="notes" maxlength="300" placeholder="例：1貫800円以内／日本酒に合うもの／お子様向け"></textarea>
 
         <button id="submit" class="btn primary" type="submit">提案を見る</button>
+        <p class="fine" style="text-align:center">1回の提案で1素材を使います（素材はいくつ入れても1回。3品のイメージ画像も含みます）</p>
       </form>
+      <div id="outOfCredits" hidden></div>
       <div id="result"></div>
     </div>
 
@@ -202,6 +239,10 @@
         <p id="profileMsg" class="ok" hidden></p>
         <p id="profileErr" class="error" hidden></p>
       </form>
+      <section id="planSection" style="margin-top:36px">
+        <h2>ご契約</h2>
+        <div id="planBox"></div>
+      </section>
     </div>
   </main>
 </section>
@@ -211,7 +252,8 @@ const PICKS = ["戻り鰹", "秋刀魚", "いくら", "金目鯛", "鯖", "松�
 const CAT_LABEL = { nigiri: "握り", dish: "一品料理" };
 const RATINGS = [["adopted", "採用する"], ["tried", "試作した"], ["not_fit", "合わなかった"]];
 const state = { code: null, ingredients: [], category: "nigiri", history: [], imagesEnabled: false,
-                shop: null, options: { price_bands: [], features: [] }, features: [], onboarding: false };
+                shop: null, options: { price_bands: [], features: [] }, features: [], onboarding: false,
+                billingInfo: { enabled: false, plans: [] } };
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -227,10 +269,14 @@ async function api(path, options = {}) {
   return data;
 }
 
-async function login(code) {
+async function login(code, { fresh = false } = {}) {
   state.code = code;
-  const shop = await api("/api/shop");
+  const shop = await api(`/api/shop${fresh ? "?fresh=1" : ""}`);
   store.set(shop.code);
+  state.code = shop.code;
+  // 次回は同じリンクを開くだけで続きから使えるよう、URL にもコードを残す
+  history.replaceState(null, "", `${location.pathname}?code=${encodeURIComponent(shop.code)}`);
+  state.billingInfo = await api("/api/billing");
   $("shopName").textContent = shop.name;
   $("login").hidden = true;
   $("app").hidden = false;
@@ -240,7 +286,130 @@ async function login(code) {
   state.shop = shop;
   state.options = await api("/api/profile-options");
   fillProfile();
+  renderBilling();
   if (!shop.profile_complete) { state.onboarding = true; showTab("shop"); }
+}
+
+// ---- 残り素材・有料プラン ----
+const yen = (n) => n.toLocaleString("ja-JP");
+const PLAN_NAME = (id) => state.billingInfo.plans.find((p) => p.id === id)?.name ?? id;
+
+async function refreshShop(fresh = false) {
+  state.shop = await api(`/api/shop${fresh ? "?fresh=1" : ""}`);
+  renderBilling();
+}
+
+function setNotice(text) {
+  $("notice").textContent = text || "";
+  $("notice").hidden = !text;
+}
+
+function plansHtml() {
+  const info = state.billingInfo;
+  if (!info.enabled) return "";
+  const rows = info.plans.map((p) => `<div class="plan-row">
+      <span class="pname">${esc(p.name)}</span>
+      <span class="pdesc">月${p.monthly}${esc(info.unit)}（${p.dishes}品の提案）・未使用分は翌月へ繰り越し</span>
+      <span class="pprice">月額 ${yen(p.price)}円（税込 ${yen(p.price_with_tax)}円）</span>
+      <button type="button" class="btn small accent plan-btn" data-plan="${esc(p.id)}">申し込む</button>
+    </div>`).join("");
+  const terms = info.terms_url ? `<a href="${esc(info.terms_url)}" target="_blank" rel="noopener">利用規約・特定商取引法に基づく表記</a>` : "";
+  const contact = info.contact ? esc(info.contact) : "";
+  return `<div class="plans">${rows}</div>
+    <p class="fine">お支払いはクレジットカード（Stripe）です。プランの変更・解約はいつでも「店舗」タブからできます。解約すると繰越分は消えます。${terms ? "<br>" + terms : ""}${contact ? "<br>" + contact : ""}</p>
+    <p class="fine"><button type="button" class="linkish recover-btn">お支払い済みなのに反映されない方</button></p>
+    <p class="fallback" hidden></p>`;
+}
+
+function renderBilling() {
+  const b = state.shop?.billing;
+  const info = state.billingInfo;
+  if (!b) return;
+  const unit = info.unit || "素材";
+  const minPrice = info.plans.length ? Math.min(...info.plans.map((p) => p.price)) : 0;
+  let bar = "";
+  if (b.source === "internal") bar = `<div class="credit"><span>社内用（回数の制限なし）</span></div>`;
+  else if (b.source === "paid") bar = `<div class="credit"><span>今月の残り <b>${b.remaining}</b> ${unit}（${esc(PLAN_NAME(b.plan))}プラン）</span></div>`;
+  else {
+    bar = `<div class="credit"><span>無料デモの残り <b>${b.remaining}</b> ${unit}</span>${info.enabled ? `<button type="button" class="linkish" data-goto="plans">有料プランを見る（月額${yen(minPrice)}円〜）</button>` : ""}</div>`;
+    if (info.enabled && b.remaining > 0 && b.remaining <= 1) {
+      const first = info.plans[0];
+      bar += `<div class="upsell"><span>無料デモはあと${b.remaining}${unit}です</span><button type="button" class="btn small accent plan-btn" data-plan="${esc(first.id)}">${esc(first.name)}プランで続ける</button></div>`;
+    }
+  }
+  $("creditBar").innerHTML = bar;
+
+  // 使い切ったとき: 提案の操作の代わりに案内を出す
+  const out = b.remaining !== null && b.remaining < 1;
+  $("proposeForm").hidden = out;
+  $("outOfCredits").hidden = !out;
+  if (out) {
+    $("outOfCredits").innerHTML = b.source === "paid"
+      ? `<div class="notice">今月の${unit}を使い切りました。来月になると、また使えるようになります。もっと使う場合は「店舗」タブからプランを変更できます。</div>`
+      : `<div class="notice">無料デモの${unit}を使い切りました。お試しいただき、ありがとうございました。${info.enabled ? "続けてお使いいただくには、有料プランをお選びください。" : (info.contact ? esc(info.contact) : "")}</div>${plansHtml()}`;
+  }
+
+  // 店舗タブの「ご契約」
+  let box = "";
+  if (b.source === "internal") box = `<p>社内用のコードです。回数の制限はありません。</p>`;
+  else if (b.source === "paid") {
+    box = `<p><b>${esc(PLAN_NAME(b.plan))}プラン</b>（月${b.monthly}${unit}）</p>
+      <p class="hint">今月の残り ${b.remaining}${unit}（繰越 ${b.carryover}・今月の使用 ${b.month_used}）</p>
+      ${b.can_manage ? `<button type="button" class="btn portal-btn">プランの変更・解約</button><p class="fallback" hidden></p>` : ""}`;
+  } else {
+    box = `<p>無料デモ（残り ${b.remaining}${unit}）</p>${info.enabled ? plansHtml() : `<p class="hint">有料プランは準備中です。</p>`}`;
+  }
+  $("planBox").innerHTML = box;
+}
+
+function goStripe(url, where) {
+  if (!/^https:\/\/(checkout|billing)\.stripe\.com\//.test(url)) throw new Error("移動先が正しくありません");
+  // 自動で移動しない場合に備えて、通常のリンクも出しておく
+  const fb = where?.querySelector?.(".fallback") ?? where?.parentElement?.querySelector?.(".fallback");
+  if (fb) { fb.innerHTML = `画面が切り替わらない場合は<a href="${esc(url)}">こちら</a>を押してください`; fb.hidden = false; }
+  location.href = url;
+}
+
+document.addEventListener("click", async (e) => {
+  const planBtn = e.target.closest(".plan-btn");
+  const portalBtn = e.target.closest(".portal-btn");
+  const recoverBtn = e.target.closest(".recover-btn");
+  const gotoPlans = e.target.closest('[data-goto="plans"]');
+  if (gotoPlans) {
+    const target = document.querySelector("#result .plans") || document.querySelector("#outOfCredits .plans");
+    if (target) target.scrollIntoView({ behavior: "smooth", block: "center" });
+    else { showTab("shop"); $("planSection").scrollIntoView({ behavior: "smooth" }); }
+    return;
+  }
+  if (planBtn) {
+    planBtn.disabled = true; const label = planBtn.textContent; planBtn.textContent = "お申し込み画面へ移動中…";
+    try {
+      const { url } = await api("/api/billing/checkout", { method: "POST", body: JSON.stringify({ plan: planBtn.dataset.plan }) });
+      goStripe(url, planBtn.closest(".plans")?.parentElement ?? planBtn.parentElement);
+    } catch (err) { planBtn.disabled = false; planBtn.textContent = label; alertInline(planBtn, err.message); }
+  }
+  if (portalBtn) {
+    portalBtn.disabled = true;
+    try { const { url } = await api("/api/billing/portal", { method: "POST" }); goStripe(url, portalBtn.parentElement); }
+    catch (err) { portalBtn.disabled = false; alertInline(portalBtn, err.message); }
+  }
+  if (recoverBtn) {
+    recoverBtn.disabled = true;
+    try {
+      const r = await api("/api/billing/recover", { method: "POST" });
+      await refreshShop(true);
+      setNotice(`お申し込みを確認しました。${PLAN_NAME(r.plan)}プランでお使いいただけます。`);
+      showTab("propose");
+    } catch (err) { alertInline(recoverBtn, err.message); }
+    finally { recoverBtn.disabled = false; }
+  }
+});
+
+function alertInline(el, message) {
+  const p = document.createElement("p");
+  p.className = "error"; p.textContent = message;
+  el.closest(".plan-row, .plans, #planBox, .upsell, div")?.after(p);
+  setTimeout(() => p.remove(), 8000);
 }
 
 // ---- 店舗情報 ----
@@ -424,14 +593,24 @@ $("proposeForm").addEventListener("submit", async (e) => {
   const result = $("result");
   if (state.ingredients.length === 0) { result.innerHTML = `<p class="error">素材を1つ以上入れてください</p>`; return; }
   $("submit").disabled = true;
+  setNotice("");
   result.innerHTML = `<p class="loading">提案を考えています<span class="dots"></span><br><small>30秒〜1分ほどかかります</small></p>`;
   result.scrollIntoView({ behavior: "smooth", block: "start" });
   try {
     const data = await api("/api/propose", { method: "POST", body: JSON.stringify({ ingredients: state.ingredients, category: state.category, notes: $("notes").value }) });
     renderProposal(result, { ...data, ingredients: [...state.ingredients], category: state.category, ratings: {}, images: {} });
+    await refreshShop().catch(() => {});
+    const b = state.shop?.billing;
+    if (b?.source === "demo" && state.billingInfo.enabled) {
+      const unit = state.billingInfo.unit;
+      const left = b.remaining > 0 ? `無料デモはあと${b.remaining}${unit}です` : "無料デモを使い切りました";
+      result.insertAdjacentHTML("afterbegin", `<div class="upsell"><span>仕上がりはいかがですか？ ${left}</span><button type="button" class="linkish" data-goto="plans">有料プランを見る</button></div>`);
+      result.insertAdjacentHTML("beforeend", `<h2>続けてお使いいただくには</h2>${plansHtml()}`);
+    }
     result.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (err) {
     result.innerHTML = `<p class="error">${esc(err.message)}</p>`;
+    refreshShop().catch(() => {});
   } finally {
     $("submit").disabled = false;
   }
@@ -472,9 +651,58 @@ document.querySelector(".tabs").onclick = (e) => {
 };
 
 renderChips();
-const saved = store.get();
-if (saved) login(saved).catch(() => { store.set(null); $("login").hidden = false; });
-else $("login").hidden = false;
+
+// ---- 登録 ----
+$("registerForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("regError").hidden = true;
+  $("regSubmit").disabled = true;
+  try {
+    const { code } = await api("/api/register", { method: "POST", body: JSON.stringify({ name: $("regName").value }) });
+    await login(code);
+  } catch (err) { $("regError").textContent = err.message; $("regError").hidden = false; }
+  finally { $("regSubmit").disabled = false; }
+});
+
+// ---- LINE の中のブラウザ ----
+function setupLine() {
+  if (!/\bLine\//i.test(navigator.userAgent)) return;
+  const u = new URL(location.href);
+  u.searchParams.set("openExternalBrowser", "1");
+  for (const id of ["lineReopen", "lineReopen2"]) $(id).href = u.toString();
+  $("lineNotice").hidden = false;
+  $("lineBar").hidden = false;
+}
+
+// ---- 入口: URL の code → 保存したコード → 登録画面 ----
+async function boot() {
+  setupLine();
+  const params = new URLSearchParams(location.search);
+  const code = params.get("code") || store.get();
+  const sessionId = params.get("session_id");
+  const fromPortal = params.get("portal") === "1";
+  if (!code) { $("login").hidden = false; return; }
+  try {
+    await login(code, { fresh: fromPortal });
+  } catch {
+    store.set(null);
+    history.replaceState(null, "", location.pathname);
+    $("login").hidden = false;
+    $("regError").textContent = "そのコードは見つかりませんでした。お店の名前を入れて登録するか、店舗コードを入れ直してください。";
+    $("regError").hidden = false;
+    return;
+  }
+  if (sessionId) {
+    try {
+      const r = await api("/api/billing/confirm", { method: "POST", body: JSON.stringify({ session_id: sessionId }) });
+      await refreshShop(true);
+      setNotice(`お申し込みありがとうございます。${PLAN_NAME(r.plan)}プランでお使いいただけます。`);
+    } catch (err) { setNotice(err.message); }
+  } else if (fromPortal) {
+    setNotice("ご契約内容を確認しました。");
+  }
+}
+boot();
 </script>
 </body>
 </html>

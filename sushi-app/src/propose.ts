@@ -180,9 +180,9 @@ export async function proposeLive(input: ProposeInput): Promise<ProposalResult> 
     });
   } catch (error) {
     if (error instanceof Anthropic.APIError) console.error(`[propose] API error ${error.status}: ${error.message}`);
-    if (error instanceof Anthropic.AuthenticationError) throw new ProposalError("APIキーが正しくありません");
+    if (error instanceof Anthropic.AuthenticationError) throw new ProposalError("ただいま提案を作れません。時間をおいてお試しください");
     if (error instanceof Anthropic.RateLimitError) throw new ProposalError("混み合っています。少し待ってからもう一度お試しください");
-    if (error instanceof Anthropic.APIError) throw new ProposalError(`AIの呼び出しに失敗しました（${error.status}）`);
+    if (error instanceof Anthropic.APIError) throw new ProposalError("提案を作れませんでした。時間をおいてお試しください");
     throw error;
   }
   if (response.stop_reason === "refusal") throw new ProposalError("この内容では提案を作れませんでした。素材や要望を変えてお試しください");

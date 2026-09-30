@@ -50,6 +50,50 @@ bun server.ts                # → http://localhost:5800/  店舗コード DEMO 
 
 クラウドには見本トレンドとデモ店舗（DEMO）は入らない。1 店舗 1 日の提案回数には上限がある（API の使いすぎ防止）。
 
+## 有料化と顧客管理（無料デモ → 有料月額プラン）
+
+参考: Menu Photo Pro（otishomiya-sketch/oishikunaare）の仕組みを、このアプリ（Bun + Railway）向けに置き換えたもの。
+
+- 会員登録・パスワードは作らない。お店の名前を入れるだけで、店舗コード（`DEMO-` ＋ 6 文字）と無料デモの枠ができる
+- コードは URL（`?code=…`）とブラウザ（localStorage）の両方に保存。次回は同じリンクを開くだけで続きから使える
+- 利用単位は **素材**: 1 素材 = 提案 1 回（3 品）。その 3 品のイメージ画像は追加の消費なし
+- 無料デモ: 1 店 3 素材、全店合計 300 素材（社内用のお店は数えない）
+- 有料プラン（月額・税別、消費税 10% を外税で加算。未使用分は翌月に繰り越し、解約で消える）
+
+| プラン | 月の素材 | 税別 | 税込 |
+|---|---|---|---|
+| ライト | 10（30 品） | 19,800 円 | 21,780 円 |
+| スタンダード | 20（60 品） | 29,800 円 | 32,780 円 |
+| プロ | 30（90 品） | 39,800 円 | 43,780 円 |
+
+- 顧客データは Railway のデータベース（`shops` 表）。処理の前に 1 素材を確保し、失敗したら返す
+- 決済は Stripe Checkout（申し込み）と Customer Portal（変更・解約）。Webhook は使わず、アプリから契約を問い合わせる（1 分キャッシュ）
+  - active / trialing / past_due を有料として扱う。存在しない契約（resource_missing）は契約なし。通信エラーのときは最後に確認できたプランで使わせる
+  - 戻る前に画面を閉じた人向けに「お支払い済みなのに反映されない方」ボタン（契約の metadata.code で検索）
+- Stripe の設定が揃うまでは、料金プランや案内を一切出さず、無料デモだけで動く（段階的に公開できる）
+- 繰越 = max(0, 月枠 + 前の繰越 − 前月の使用) + 月枠 × (丸ごと使わなかった月の数)。読み取り時に計算し、使うときにまとめて書き込む
+
+### 管理のコマンド（リポジトリ直下で）
+```bash
+bun sushi-app/scripts/loop.ts shop-stats              # 店舗ごとの契約・無料デモの使用・今月の使用・繰越
+bun sushi-app/scripts/loop.ts billing-settings        # 無料デモの上限を見る
+bun sushi-app/scripts/loop.ts set-billing-settings --json '{"demo_total_limit":300,"demo_default_limit":3}'
+bun sushi-app/scripts/loop.ts set-shop-billing --json '{"code":"…","internal":true}'          # 社内用（無制限）にする
+bun sushi-app/scripts/loop.ts set-shop-billing --json '{"code":"…","demo_limit":5,"memo":"…"}' # 1 店だけ無料枠を変える
+```
+
+### Stripe の初回設定（管理者）
+1. まずサンドボックス（テストモード）で試す
+2. 商品を 3 つ作り（ライト・スタンダード・プロ、月額の継続課金）、ID を `STRIPE_PRICE_LIGHT / STANDARD / PRO` に入れる（商品 ID `prod_…` なら既定の価格を使う）
+3. 税率「消費税 10%・税別（exclusive）」を作り、`STRIPE_TAX_RATE_ID` に入れる（Stripe Tax は使わない）
+4. Customer Portal をダッシュボードで設定して保存する: キャンセルは期間の終了時、アップグレードは日割りですぐ請求、ダウングレードは期間の終了時
+5. 本番のキーは **制限付きキー** にする。権限は Checkout Sessions＝作成、Customer Portal＝作成、Subscriptions・Customers・Products・Prices・Tax Rates＝読み取り の 7 つだけ
+6. 本番の有効化には、会社のサイトに特定商取引法に基づく表記、本人確認書類の提出、セキュリティ・チェックリストへの回答（カード情報を保持しない など）が必要
+7. Railway の Variables に上の値と `APP_URL`・`TERMS_URL`・`CONTACT_TEXT` を入れて Deploy
+
+### テスト（本物の Stripe を使わない）
+`sushi-app/scripts/stripe-mock.ts` が模擬 Stripe。`.claude/launch.json` の `stripe-mock` と `sushi-app-billing-test` を起動し、`POST /__complete/<checkout_session_id>` で申し込みを完了させて流れを確かめる。
+
 ## 学習ループ（エージェント）
 
 | 担当 | ファイル | 仕事 | 周期 |

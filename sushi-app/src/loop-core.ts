@@ -17,7 +17,7 @@ const OVERSEAS_SHARE = 0.35;
 /** JSON の入力を受け取るコマンド */
 export const JSON_COMMANDS = new Set([
   "add-trends", "record-followup", "add-hypotheses", "start-experiments", "add-notes", "add-shop", "import-snapshot",
-  "set-shop-profile",
+  "set-shop-profile", "set-shop-billing", "set-billing-settings",
 ]);
 
 export class LoopError extends Error {}
@@ -488,12 +488,46 @@ export function runLoop(db: Database, cmd: string | undefined, args: string[], i
       };
     }
 
+    case "billing-settings":
+      return { data: db.query("SELECT key, value FROM billing_settings ORDER BY key").all() };
+
+    case "set-billing-settings": {
+      // 例: {"demo_total_limit": 300, "demo_default_limit": 3}
+      const allowed = ["demo_total_limit", "demo_default_limit"];
+      const changed: string[] = [];
+      for (const [k, v] of Object.entries(input ?? {})) {
+        if (!allowed.includes(k)) die(`変えられる設定は ${allowed.join(" / ")} だけです`);
+        const n = Number(v);
+        if (!Number.isInteger(n) || n < 0) die(`${k} は 0 以上の整数にしてください`);
+        db.query("INSERT INTO billing_settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").run(k, String(n));
+        changed.push(`${k}=${n}`);
+      }
+      return { data: { changed } };
+    }
+
+    case "set-shop-billing": {
+      // 例: {"code":"TV8DH62H68","internal":false,"demo_limit":3,"demo_used":0,"memo":"職人モニター"}
+      const code = str(input?.code, 20);
+      if (!code) die("code を指定してください");
+      const sets: string[] = [];
+      const vals: (string | number | null)[] = [];
+      if (input.internal !== undefined) { sets.push("internal = ?"); vals.push(input.internal ? 1 : 0); }
+      if (input.demo_limit !== undefined) { sets.push("demo_limit = ?"); vals.push(input.demo_limit === null ? null : Math.max(0, Math.round(Number(input.demo_limit)))); }
+      if (input.demo_used !== undefined) { sets.push("demo_used = ?"); vals.push(Math.max(0, Math.round(Number(input.demo_used)))); }
+      if (input.memo !== undefined) { sets.push("memo = ?"); vals.push(str(input.memo, 200)); }
+      if (!sets.length) die("変える項目（internal / demo_limit / demo_used / memo）を指定してください");
+      const changes = db.query(`UPDATE shops SET ${sets.join(", ")} WHERE code = ? COLLATE NOCASE`).run(...vals, code).changes;
+      if (!changes) die(`店舗 ${code} がありません`);
+      return { data: { code, updated: sets.map((x) => x.split(" ")[0]) } };
+    }
+
     case "shop-stats":
       // 店舗ごとの利用状況（管理用）
       return {
         data: db
           .query(
-            `SELECT s.code, s.name, s.price_band,
+            `SELECT s.code, s.name, s.price_band, CASE WHEN s.internal = 1 THEN '社内用' WHEN s.plan IS NOT NULL THEN s.plan ELSE '無料デモ' END AS status,
+                    s.demo_limit, s.demo_used, s.plan_month, s.month_used, s.carryover, s.memo,
                     (SELECT COUNT(*) FROM proposals p WHERE p.shop_id = s.id) AS proposals,
                     (SELECT COUNT(*) FROM proposals p WHERE p.shop_id = s.id AND p.created_at >= datetime('now','localtime','-7 days')) AS proposals_7d,
                     (SELECT COUNT(*) FROM feedback f JOIN proposals p ON p.id = f.proposal_id WHERE p.shop_id = s.id) AS ratings,

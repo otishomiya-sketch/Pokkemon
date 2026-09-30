@@ -11,7 +11,10 @@
  *   SUSHI_LOOP_TOKEN      Mac のエージェントが /api/loop で DB を読み書きするための合言葉（無ければ /api/loop は無効）
  *   DAILY_PROPOSAL_LIMIT  1 店舗 1 日あたりの提案回数の上限（既定 30。API の使いすぎ防止）
  *   OPENAI_API_KEY        あればメニューのイメージ画像を作れる（無ければボタンを出さない）
- *   DAILY_IMAGE_LIMIT     1 店舗 1 日あたりの画像の枚数の上限（既定 20）
+ *   STRIPE_SECRET_KEY / STRIPE_PRICE_LIGHT / STRIPE_PRICE_STANDARD / STRIPE_PRICE_PRO / STRIPE_TAX_RATE_ID
+ *                         すべて揃うと有料プランを出す（揃うまでは無料デモだけで動く）
+ *   APP_URL               公開 URL（Stripe から戻る先。無ければリクエストの URL から作る）
+ *   TERMS_URL / CONTACT_TEXT  利用規約・特定商取引法の表記ページ、問い合わせ先
  */
 
 import { resolve, dirname } from "path";
@@ -21,6 +24,10 @@ import { proposeLive, proposeDemo, hasCredentials, ProposalError, MODEL, wantsEn
 import { runLoop, LoopError } from "./src/loop-core";
 import { PRICE_BANDS, FEATURE_OPTIONS, parseProfileInput, ProfileError } from "./src/shop-profile";
 import type { Shop } from "./src/db";
+import { billingEnabled, publicBillingInfo, planById, type PlanId } from "./src/plans";
+import { creditsFor, loadBillingShop, reserveCredit, refundCredit, recordSubscription, recordPlanStatus, billingSetting, demoTotalUsed } from "./src/credits";
+import { checkSubscription, confirmCheckout, createCheckout, createPortal, findSubscriptionByCode, forgetSubscription, StripeError } from "./src/billing";
+import { randomBytes } from "crypto";
 import { timingSafeEqual } from "crypto";
 import { existsSync } from "fs";
 import { basename } from "path";
@@ -32,7 +39,6 @@ const PORT = Number(process.env.PORT ?? 5800);
 const HOST = process.env.HOST ?? "127.0.0.1";
 const LOOP_TOKEN = process.env.SUSHI_LOOP_TOKEN ?? "";
 const DAILY_LIMIT = Number(process.env.DAILY_PROPOSAL_LIMIT ?? 30);
-const DAILY_IMAGE_LIMIT = Number(process.env.DAILY_IMAGE_LIMIT ?? 20);
 
 const json = (data: unknown, status = 200) => Response.json(data, { status });
 const pickOne = <T,>(items: T[]): T[] => (items.length ? [items[Math.floor(Math.random() * items.length)]!] : []);
@@ -59,10 +65,16 @@ async function handlePropose(req: Request) {
   if (category !== "nigiri" && category !== "dish") return fail("握りか一品料理を選んでください");
   if (!shop.price_band || !shop.concept) return fail("先にお店の情報（コンセプト・特徴・客単価）を登録してください", 409);
 
-  const today = db
-    .query<{ c: number }, [number]>("SELECT COUNT(*) AS c FROM proposals WHERE shop_id = ? AND date(created_at) = date('now','localtime')")
-    .get(shop.id)!.c;
-  if (today >= DAILY_LIMIT) return fail(`今日の提案回数の上限（${DAILY_LIMIT} 回）に達しました。明日またお使いください`, 429);
+  if (shop.internal) {
+    // 社内用は無制限だが、使いすぎ防止に 1 日の上限だけ残す
+    const today = db
+      .query<{ c: number }, [number]>("SELECT COUNT(*) AS c FROM proposals WHERE shop_id = ? AND date(created_at) = date('now','localtime')")
+      .get(shop.id)!.c;
+    if (today >= DAILY_LIMIT) return fail(`今日の提案回数の上限（${DAILY_LIMIT} 回）に達しました。明日またお使いください`, 429);
+  }
+  // 処理の前に 1 素材を確保する（失敗したら返す）
+  const source = reserveCredit(db, shop.id, await activePlanFor(shop));
+  if (!source) return fail("使える素材が残っていません", 402);
 
   const input = {
     shop: { concept: shop.concept, features: JSON.parse(shop.features), price_per_guest: shop.price_per_guest, price_band: shop.price_band },
@@ -83,6 +95,7 @@ async function handlePropose(req: Request) {
   try {
     result = live ? await proposeLive(input) : proposeDemo(input);
   } catch (error) {
+    refundCredit(db, shop.id, source);
     if (error instanceof ProposalError) return fail(error.message, 502);
     console.error(error);
     return fail("提案の作成中にエラーが起きました", 500);
@@ -133,6 +146,142 @@ async function handleFeedback(req: Request) {
   return json({ ok: true });
 }
 
+// ---- 有料化・顧客管理 ----
+
+/** Stripe で確認した有料プラン。通信エラーのときは最後に確認できたプランで使わせる（払っている顧客を締め出さない） */
+async function activePlanFor(shop: Shop, fresh = false): Promise<PlanId | null> {
+  if (shop.internal) return null;
+  if (!shop.stripe_subscription_id) return null;
+  if (!billingEnabled()) return (planById(shop.plan)?.id ?? null);
+  if (fresh) forgetSubscription(shop.stripe_subscription_id);
+  const check = await checkSubscription(shop.stripe_subscription_id);
+  if (check.state === "error") return planById(shop.plan)?.id ?? null;
+  const plan = check.state === "active" ? (check.plan ?? planById(shop.plan)?.id ?? null) : null;
+  if (plan !== shop.plan) recordPlanStatus(db, shop.id, plan);
+  return plan;
+}
+
+function appUrl(req: Request): string {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/+$/, "");
+  const u = new URL(req.url);
+  const proto = req.headers.get("x-forwarded-proto") ?? u.protocol.replace(":", "");
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? u.host;
+  return `${proto}://${host}`;
+}
+
+const STRIPE_HOSTS = ["https://checkout.stripe.com/", "https://billing.stripe.com/"];
+const safeStripeUrl = (url: string) => (STRIPE_HOSTS.some((h) => url.startsWith(h)) ? url : null);
+
+async function billingView(shop: Shop, fresh = false) {
+  const plan = await activePlanFor(shop, fresh);
+  const credits = creditsFor(db, loadBillingShop(db, shop.id)!, plan);
+  return { ...credits, can_manage: Boolean(shop.stripe_customer_id && plan) };
+}
+
+// 登録の乱用防止（同じ接続元から 1 日 5 件まで）
+const registrations = new Map<string, { day: string; n: number }>();
+const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // 紛らわしい 0/O/1/I/L を除く
+
+async function handleRegister(req: Request) {
+  const body = (await req.json().catch(() => null)) as { name?: unknown } | null;
+  const name = typeof body?.name === "string" ? body.name.trim().slice(0, 60) : "";
+  if (!name) return fail("お店の名前を入れてください");
+
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0]!.trim() || "local";
+  const day = new Date().toISOString().slice(0, 10);
+  const r = registrations.get(ip);
+  const n = r && r.day === day ? r.n : 0;
+  if (n >= 5) return fail("登録が続いたため、しばらくしてからお試しください", 429);
+
+  // 無料デモの全体の上限に達していても、有料プランが使えるなら登録は受け付ける
+  const totalLeft = billingSetting(db, "demo_total_limit", 300) - demoTotalUsed(db);
+  if (totalLeft <= 0 && !billingEnabled()) return fail("ただいま無料デモの受付を停止しています", 403);
+
+  let code = "";
+  for (let i = 0; i < 20 && !code; i++) {
+    const c = "DEMO-" + [...randomBytes(6)].map((b) => CODE_CHARS[b % CODE_CHARS.length]).join("");
+    if (!findShop(db, c)) code = c;
+  }
+  if (!code) return fail("コードを作れませんでした。もう一度お試しください", 500);
+  db.query("INSERT INTO shops (code, name) VALUES (?, ?)").run(code, name); // 値はパラメータで渡す（数式・SQL として扱われない）
+  registrations.set(ip, { day, n: n + 1 });
+  return json({ code });
+}
+
+async function handleCheckout(req: Request) {
+  const shop = shopFrom(req);
+  if (!shop) return fail("店舗コードが正しくありません", 401);
+  if (!billingEnabled() || shop.internal) return fail("有料プランはまだ使えません", 404);
+  const body = (await req.json().catch(() => null)) as { plan?: string } | null;
+  const plan = planById(body?.plan);
+  if (!plan) return fail("プランを選んでください");
+  try {
+    const url = safeStripeUrl(await createCheckout(plan.id, shop.code, appUrl(req)));
+    return url ? json({ url }) : fail("申し込み画面を開けませんでした", 502);
+  } catch (e) {
+    console.error("[billing] checkout", e instanceof StripeError ? `${e.status} ${e.code} ${e.message}` : e);
+    return fail("申し込み画面を開けませんでした。しばらくしてからお試しください", 502);
+  }
+}
+
+async function linkSubscription(shop: Shop, found: { subscription: string; customer: string }) {
+  forgetSubscription(found.subscription);
+  const check = await checkSubscription(found.subscription);
+  const plan = check.state === "active" ? check.plan : null;
+  if (!plan) return null;
+  recordSubscription(db, shop.id, found.subscription, found.customer, plan);
+  return plan;
+}
+
+async function handleConfirm(req: Request) {
+  const shop = shopFrom(req);
+  if (!shop) return fail("店舗コードが正しくありません", 401);
+  if (!billingEnabled()) return fail("有料プランはまだ使えません", 404);
+  const body = (await req.json().catch(() => null)) as { session_id?: string } | null;
+  if (!body?.session_id) return fail("申し込みの情報がありません");
+  try {
+    // すでに同じ契約を記録済みなら何もしない（画面の再表示で二度呼ばれても使用数を戻さない）
+    const found = await confirmCheckout(body.session_id, shop.code);
+    if (!found) return fail("お申し込みを確認できませんでした", 404);
+    if (shop.stripe_subscription_id === found.subscription) return json({ ok: true, plan: shop.plan });
+    const plan = await linkSubscription(shop, found);
+    return plan ? json({ ok: true, plan }) : fail("お申し込みを確認できませんでした", 404);
+  } catch (e) {
+    console.error("[billing] confirm", e instanceof StripeError ? `${e.status} ${e.code} ${e.message}` : e);
+    return fail("お申し込みの確認に失敗しました。「お支払い済みなのに反映されない方」からお試しください", 502);
+  }
+}
+
+async function handleRecover(req: Request) {
+  const shop = shopFrom(req);
+  if (!shop) return fail("店舗コードが正しくありません", 401);
+  if (!billingEnabled()) return fail("有料プランはまだ使えません", 404);
+  try {
+    const found = await findSubscriptionByCode(shop.code);
+    if (!found) return fail("このコードのお申し込みは見つかりませんでした。お問い合わせください", 404);
+    if (shop.stripe_subscription_id === found.subscription) return json({ ok: true, plan: shop.plan });
+    const plan = await linkSubscription(shop, found);
+    return plan ? json({ ok: true, plan }) : fail("お申し込みを確認できませんでした", 404);
+  } catch (e) {
+    console.error("[billing] recover", e instanceof StripeError ? `${e.status} ${e.code} ${e.message}` : e);
+    return fail("確認に失敗しました。しばらくしてからお試しください", 502);
+  }
+}
+
+async function handlePortal(req: Request) {
+  const shop = shopFrom(req);
+  if (!shop) return fail("店舗コードが正しくありません", 401);
+  if (!billingEnabled() || !shop.stripe_customer_id) return fail("契約中のプランがありません", 404);
+  try {
+    if (shop.stripe_subscription_id) forgetSubscription(shop.stripe_subscription_id); // 戻ってきたら確認し直す
+    const url = safeStripeUrl(await createPortal(shop.stripe_customer_id, shop.code, appUrl(req)));
+    return url ? json({ url }) : fail("画面を開けませんでした", 502);
+  } catch (e) {
+    console.error("[billing] portal", e instanceof StripeError ? `${e.status} ${e.code} ${e.message}` : e);
+    return fail("画面を開けませんでした。しばらくしてからお試しください", 502);
+  }
+}
+
 function shopView(shop: Shop) {
   return {
     code: shop.code,
@@ -174,14 +323,7 @@ async function handleImage(req: Request, proposalId: number, dishIndex: number) 
   const cached = existingImage(db, proposal.id, dishIndex);
   if (cached) return json({ url: cached });
 
-  const today = db
-    .query<{ c: number }, [number]>(
-      `SELECT COUNT(*) AS c FROM dish_images i JOIN proposals p ON p.id = i.proposal_id
-        WHERE p.shop_id = ? AND date(i.created_at) = date('now','localtime')`,
-    )
-    .get(shop.id)!.c;
-  if (today >= DAILY_IMAGE_LIMIT) return fail(`今日の画像の上限（${DAILY_IMAGE_LIMIT} 枚）に達しました。明日またお使いください`, 429);
-
+  // 画像は提案した 3 品の分まで追加の消費なし（1 品につき 1 枚を保存して使い回すので、提案 1 回で最大 3 枚）
   try {
     return json({ url: await generateDishImage(db, proposal.id, dishIndex, dish, proposal.category) });
   } catch (error) {
@@ -263,8 +405,15 @@ Bun.serve({
     if (req.method === "GET" && url.pathname.startsWith("/images/")) return serveImage(url.pathname.slice("/images/".length));
     if (route === "GET /api/shop") {
       const shop = shopFrom(req);
-      return shop ? json(shopView(shop)) : fail("店舗コードが見つかりません", 404);
+      if (!shop) return fail("店舗コードが見つかりません", 404);
+      return json({ ...shopView(shop), billing: await billingView(shop, url.searchParams.get("fresh") === "1") });
     }
+    if (route === "GET /api/billing") return json(publicBillingInfo());
+    if (route === "POST /api/register") return handleRegister(req);
+    if (route === "POST /api/billing/checkout") return handleCheckout(req);
+    if (route === "POST /api/billing/confirm") return handleConfirm(req);
+    if (route === "POST /api/billing/recover") return handleRecover(req);
+    if (route === "POST /api/billing/portal") return handlePortal(req);
     if (route === "PUT /api/shop/profile") return handleProfile(req);
     if (route === "GET /api/profile-options") return json({ price_bands: PRICE_BANDS.map(({ id, label, examples, max }) => ({ id, label, examples, max: Number.isFinite(max) ? max : null })), features: FEATURE_OPTIONS });
     if (route === "POST /api/propose") return handlePropose(req);

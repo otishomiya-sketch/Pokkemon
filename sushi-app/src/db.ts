@@ -13,7 +13,8 @@ export function openDb(): Database {
   mkdirSync(dirname(DB_PATH), { recursive: true });
   const db = new Database(DB_PATH, { create: true });
   db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
-  // 既存 DB に後から足した列を補う（schema.sql の CREATE TABLE IF NOT EXISTS は既存表を変えないため）
+  db.exec(readFileSync(resolve(appRoot, "db/schema.sql"), "utf8"));
+  // 後から足した列を補う（schema.sql の CREATE TABLE IF NOT EXISTS は既存表を変えないため。新しい DB でも表を作ったあとに足す）
   const addColumn = (table: string, column: string, definition: string) => {
     const cols = db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all().map((c) => c.name);
     if (cols.length > 0 && !cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
@@ -26,7 +27,18 @@ export function openDb(): Database {
   addColumn("trends", "price_band", "TEXT");
   addColumn("trends", "origin", "TEXT");
   addColumn("trends", "source_kind", "TEXT");
-  db.exec(readFileSync(resolve(appRoot, "db/schema.sql"), "utf8"));
+  // 有料化・顧客管理（src/credits.ts）
+  addColumn("shops", "internal", "INTEGER NOT NULL DEFAULT 0");      // 1 = 社内用（無制限・全体の上限に数えない）
+  addColumn("shops", "demo_limit", "INTEGER");                       // 無料デモの上限（素材）。NULL は既定値
+  addColumn("shops", "demo_used", "INTEGER NOT NULL DEFAULT 0");     // 無料デモで使った素材
+  addColumn("shops", "last_used_at", "TEXT");
+  addColumn("shops", "plan", "TEXT");                                // 最後に確認できた有料プラン（light/standard/pro）
+  addColumn("shops", "stripe_subscription_id", "TEXT");
+  addColumn("shops", "stripe_customer_id", "TEXT");
+  addColumn("shops", "plan_month", "TEXT");                          // 対象月（YYYY-MM）
+  addColumn("shops", "month_used", "INTEGER NOT NULL DEFAULT 0");    // 対象月に使った素材
+  addColumn("shops", "carryover", "INTEGER NOT NULL DEFAULT 0");     // 対象月の初めの繰越
+  addColumn("shops", "memo", "TEXT");
   return db;
 }
 
@@ -68,6 +80,10 @@ export interface Shop {
   features: string;
   price_per_guest: number | null;
   price_band: string | null;
+  internal: number;
+  plan: string | null;
+  stripe_subscription_id: string | null;
+  stripe_customer_id: string | null;
 }
 
 export interface TrendRow {
@@ -86,7 +102,8 @@ export interface TrendRow {
 export function findShop(db: Database, code: string): Shop | null {
   return db
     .query<Shop, [string]>(
-      "SELECT id, code, name, concept, features, price_per_guest, price_band FROM shops WHERE code = ? COLLATE NOCASE",
+      `SELECT id, code, name, concept, features, price_per_guest, price_band, internal, plan, stripe_subscription_id, stripe_customer_id
+         FROM shops WHERE code = ? COLLATE NOCASE`,
     )
     .get(code.trim());
 }

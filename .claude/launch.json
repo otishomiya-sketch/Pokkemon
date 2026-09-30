@@ -12,6 +12,24 @@
       "runtimeExecutable": "/bin/zsh",
       "runtimeArgs": ["-c", "cd /Users/omiyahisashi/Projects/ポケモン/pokemon-agent-os/sushi-app && SUSHI_DB_PATH=data/test.db SUSHI_LOOP_TOKEN=local-test-token ANTHROPIC_API_KEY= OPENAI_API_KEY= PORT=5801 /Users/omiyahisashi/.bun/bin/bun server.ts"],
       "port": 5801
+    },
+    {
+      "name": "stripe-mock",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": ["-c", "cd /Users/omiyahisashi/Projects/ポケモン/pokemon-agent-os/sushi-app && PORT=12111 /Users/omiyahisashi/.bun/bin/bun scripts/stripe-mock.ts"],
+      "port": 12111
+    },
+    {
+      "name": "sushi-app-billing-test",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": ["-c", "cd /Users/omiyahisashi/Projects/ポケモン/pokemon-agent-os/sushi-app && SUSHI_DB_PATH=data/billing-test.db SUSHI_LOOP_TOKEN=local-test-token ANTHROPIC_API_KEY= OPENAI_API_KEY= STRIPE_API_BASE=http://127.0.0.1:12111 STRIPE_SECRET_KEY=sk_test_mock STRIPE_PRICE_LIGHT=prod_light STRIPE_PRICE_STANDARD=price_standard STRIPE_PRICE_PRO=prod_pro STRIPE_TAX_RATE_ID=txr_mock TERMS_URL=https://example.com/terms CONTACT_TEXT='お問い合わせ：test@example.com' APP_URL=http://localhost:5802 PORT=5802 /Users/omiyahisashi/.bun/bin/bun server.ts"],
+      "port": 5802
+    },
+    {
+      "name": "sushi-app-billing-fail-test",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": ["-c", "cd /Users/omiyahisashi/Projects/ポケモン/pokemon-agent-os/sushi-app && SUSHI_DB_PATH=data/billing-test.db ANTHROPIC_API_KEY=sk-ant-invalid-for-test ANTHROPIC_WORKSPACE_ID= OPENAI_API_KEY= STRIPE_API_BASE=http://127.0.0.1:12111 STRIPE_SECRET_KEY=sk_test_mock STRIPE_PRICE_LIGHT=prod_light STRIPE_PRICE_STANDARD=price_standard STRIPE_PRICE_PRO=prod_pro STRIPE_TAX_RATE_ID=txr_mock PORT=5803 /Users/omiyahisashi/.bun/bin/bun server.ts"],
+      "port": 5803
     }
   ]
 }
